@@ -16,6 +16,13 @@ import java.util.List;
 @Slf4j
 @RequiredArgsConstructor
 public class HrService {
+    private static final String MSG_INVALID_QUESTION_RANGE = "Invalid question range";
+    private static final String MSG_EXACTLY_ONE_OPTION_CORRECT = "Exactly one option must be correct";
+    private static final String MSG_TEST_NOT_FOUND_BY_ID = "Test not found. testId=";
+    private static final String MSG_CANDIDATE_NOT_FOUND_BY_ID = "Candidate not found. candidateId=";
+    private static final String MSG_QUESTION_NOT_FOUND_BY_ID = "Question not found. questionId=";
+    private static final String MSG_ASSIGNMENT_NOT_FOUND = "Assignment not found. candidateId=%d, testId=%d";
+    private static final String MSG_CANDIDATE_LOGIN_ALREADY_EXISTS = "Candidate login already exists. login=";
 
     private final TestRepository testRepository;
     private final QuestionRepository questionRepository;
@@ -37,7 +44,7 @@ public class HrService {
         int max = req.maxQuestionsPerAttempt() == null ? 40 : req.maxQuestionsPerAttempt();
 
         if (min < 1 || max < min) {
-            throw new IllegalArgumentException("Invalid question range");
+            throw new IllegalArgumentException(MSG_INVALID_QUESTION_RANGE + ". min=" + min + ", max=" + max);
         }
 
         TestEntity entity = TestEntity.builder()
@@ -54,7 +61,8 @@ public class HrService {
     }
 
     public TestEntity updateTest(Long id, HrDtos.UpdateTestRequest req) {
-        TestEntity test = testRepository.findById(id).orElseThrow(() -> new IllegalArgumentException("Test not found"));
+        TestEntity test = testRepository.findById(id)
+                .orElseThrow(() -> new IllegalArgumentException(MSG_TEST_NOT_FOUND_BY_ID + id));
 
         if (req.title() != null && !req.title().isBlank()) {
             test.setTitle(req.title());
@@ -69,7 +77,9 @@ public class HrService {
             test.setMaxQuestionsPerAttempt(req.maxQuestionsPerAttempt());
         }
         if (test.getMaxQuestionsPerAttempt() < test.getMinQuestionsPerAttempt()) {
-            throw new IllegalArgumentException("Invalid question range");
+            throw new IllegalArgumentException(MSG_INVALID_QUESTION_RANGE
+                    + ". min=" + test.getMinQuestionsPerAttempt()
+                    + ", max=" + test.getMaxQuestionsPerAttempt());
         }
 
         TestEntity updated = testRepository.save(test);
@@ -84,21 +94,23 @@ public class HrService {
 
     public CandidateEntity createCandidate(HrDtos.CreateCandidateRequest req) {
         if (candidateRepository.existsByLoginIgnoreCase(req.login())) {
-            throw new IllegalArgumentException("Candidate login already exists");
+            throw new IllegalArgumentException(MSG_CANDIDATE_LOGIN_ALREADY_EXISTS + req.login().trim());
         }
+
         CandidateEntity saved = candidateRepository.save(CandidateEntity.builder()
                 .fullName(req.fullName())
                 .login(req.login().trim())
                 .passwordHash(passwordEncoder.encode(req.password()))
                 .active(req.active() == null || req.active())
                 .build());
+
         log.info("Candidate created id={} login={}", saved.getId(), saved.getLogin());
         return saved;
     }
 
     public CandidateEntity updateCandidate(Long candidateId, HrDtos.UpdateCandidateRequest req) {
         CandidateEntity candidate = candidateRepository.findById(candidateId)
-                .orElseThrow(() -> new IllegalArgumentException("Candidate not found"));
+                .orElseThrow(() -> new IllegalArgumentException(MSG_CANDIDATE_NOT_FOUND_BY_ID + candidateId));
 
         if (req.fullName() != null && !req.fullName().isBlank()) {
             candidate.setFullName(req.fullName());
@@ -122,9 +134,9 @@ public class HrService {
 
     public TestAssignmentEntity assignTest(Long candidateId, Long testId) {
         CandidateEntity candidate = candidateRepository.findById(candidateId)
-                .orElseThrow(() -> new IllegalArgumentException("Candidate not found"));
+                .orElseThrow(() -> new IllegalArgumentException(MSG_CANDIDATE_NOT_FOUND_BY_ID + candidateId));
         TestEntity test = testRepository.findById(testId)
-                .orElseThrow(() -> new IllegalArgumentException("Test not found"));
+                .orElseThrow(() -> new IllegalArgumentException(MSG_TEST_NOT_FOUND_BY_ID + testId));
 
         TestAssignmentEntity assignment = testAssignmentRepository
                 .findByCandidateIdAndTestIdAndActiveTrue(candidateId, testId)
@@ -145,7 +157,7 @@ public class HrService {
     public void unassignTest(Long candidateId, Long testId) {
         TestAssignmentEntity assignment = testAssignmentRepository
                 .findByCandidateIdAndTestIdAndActiveTrue(candidateId, testId)
-                .orElseThrow(() -> new IllegalArgumentException("Assignment not found"));
+                .orElseThrow(() -> new IllegalArgumentException(MSG_ASSIGNMENT_NOT_FOUND.formatted(candidateId, testId)));
         assignment.setActive(false);
         testAssignmentRepository.save(assignment);
         log.info("Test unassigned candidateId={} testId={}", candidateId, testId);
@@ -153,11 +165,12 @@ public class HrService {
 
     @Transactional
     public QuestionEntity addQuestion(Long testId, HrDtos.CreateQuestionRequest req) {
-        TestEntity test = testRepository.findById(testId).orElseThrow(() -> new IllegalArgumentException("Test not found"));
+        TestEntity test = testRepository.findById(testId)
+                .orElseThrow(() -> new IllegalArgumentException(MSG_TEST_NOT_FOUND_BY_ID + testId));
 
         long correctCount = req.options().stream().filter(HrDtos.OptionRequest::correct).count();
         if (correctCount != 1) {
-            throw new IllegalArgumentException("Exactly one option must be correct");
+            throw new IllegalArgumentException(MSG_EXACTLY_ONE_OPTION_CORRECT + ". currentCorrectCount=" + correctCount);
         }
 
         QuestionEntity question = questionRepository.save(QuestionEntity.builder()
@@ -181,7 +194,7 @@ public class HrService {
     @Transactional
     public QuestionEntity updateQuestion(Long questionId, HrDtos.UpdateQuestionRequest req) {
         QuestionEntity question = questionRepository.findById(questionId)
-                .orElseThrow(() -> new IllegalArgumentException("Question not found"));
+                .orElseThrow(() -> new IllegalArgumentException(MSG_QUESTION_NOT_FOUND_BY_ID + questionId));
 
         if (req.text() != null && !req.text().isBlank()) {
             question.setText(req.text());
@@ -191,7 +204,7 @@ public class HrService {
         if (req.options() != null && !req.options().isEmpty()) {
             long correctCount = req.options().stream().filter(HrDtos.OptionRequest::correct).count();
             if (correctCount != 1) {
-                throw new IllegalArgumentException("Exactly one option must be correct");
+                throw new IllegalArgumentException(MSG_EXACTLY_ONE_OPTION_CORRECT + ". currentCorrectCount=" + correctCount);
             }
             List<OptionEntity> oldOptions = optionRepository.findAllByQuestionId(questionId);
             optionRepository.deleteAll(oldOptions);

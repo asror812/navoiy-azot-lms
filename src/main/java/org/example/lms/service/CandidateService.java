@@ -19,6 +19,16 @@ import java.util.stream.Collectors;
 @Slf4j
 @RequiredArgsConstructor
 public class CandidateService {
+    private static final String MSG_INVALID_LOGIN_OR_PASSWORD = "Invalid login or password";
+    private static final String MSG_CANDIDATE_INACTIVE = "Candidate is inactive. candidateId=";
+    private static final String MSG_CANDIDATE_NOT_FOUND_BY_ID = "Candidate not found. candidateId=";
+    private static final String MSG_TEST_NOT_FOUND_BY_ID = "Test not found. testId=";
+    private static final String MSG_TEST_INACTIVE = "Test is inactive. testId=";
+    private static final String MSG_TEST_NOT_ASSIGNED = "This test is not assigned by HR. candidateId=%d, testId=%d";
+    private static final String MSG_NO_RETAKES = "No retakes allowed. Attempt already exists for candidateId=%d, testId=%d";
+    private static final String MSG_NO_QUESTIONS_CONFIGURED = "No questions configured for this test. testId=";
+    private static final String MSG_ATTEMPT_NOT_FOUND = "Attempt not found. attemptId=%d, candidateId=%d";
+    private static final String MSG_ATTEMPT_ALREADY_FINISHED = "Attempt already finished. attemptId=";
 
     private final CandidateRepository candidateRepository;
     private final TestRepository testRepository;
@@ -34,14 +44,14 @@ public class CandidateService {
 
     public CandidateResponses.LoginResponse login(CandidateDtos.LoginRequest req) {
         CandidateEntity candidate = candidateRepository.findByLoginIgnoreCase(req.login().trim())
-                .orElseThrow(() -> new IllegalArgumentException("Invalid login or password"));
+                .orElseThrow(() -> new IllegalArgumentException(MSG_INVALID_LOGIN_OR_PASSWORD + ". login=" + req.login().trim()));
 
         if (!Boolean.TRUE.equals(candidate.getActive())) {
-            throw new IllegalArgumentException("Candidate is inactive");
+            throw new IllegalArgumentException(MSG_CANDIDATE_INACTIVE + candidate.getId());
         }
 
         if (!passwordEncoder.matches(req.password(), candidate.getPasswordHash())) {
-            throw new IllegalArgumentException("Invalid login or password");
+            throw new IllegalArgumentException(MSG_INVALID_LOGIN_OR_PASSWORD + ". login=" + req.login().trim());
         }
 
         log.info("Candidate login success id={} login={}", candidate.getId(), candidate.getLogin());
@@ -58,29 +68,29 @@ public class CandidateService {
     @Transactional
     public CandidateResponses.StartResponse startTest(Long testId, CandidateDtos.StartTestRequest req) {
         CandidateEntity candidate = candidateRepository.findById(req.candidateId())
-                .orElseThrow(() -> new IllegalArgumentException("Candidate not found"));
+                .orElseThrow(() -> new IllegalArgumentException(MSG_CANDIDATE_NOT_FOUND_BY_ID + req.candidateId()));
 
         if (!Boolean.TRUE.equals(candidate.getActive())) {
-            throw new IllegalArgumentException("Candidate is inactive");
+            throw new IllegalArgumentException(MSG_CANDIDATE_INACTIVE + candidate.getId());
         }
 
         TestEntity test = testRepository.findById(testId)
-                .orElseThrow(() -> new IllegalArgumentException("Test not found"));
+                .orElseThrow(() -> new IllegalArgumentException(MSG_TEST_NOT_FOUND_BY_ID + testId));
 
         if (!Boolean.TRUE.equals(test.getActive())) {
-            throw new IllegalArgumentException("Test is inactive");
+            throw new IllegalArgumentException(MSG_TEST_INACTIVE + testId);
         }
 
         testAssignmentRepository.findByCandidateIdAndTestIdAndActiveTrue(candidate.getId(), test.getId())
-                .orElseThrow(() -> new IllegalArgumentException("This test is not assigned by HR"));
+                .orElseThrow(() -> new IllegalArgumentException(MSG_TEST_NOT_ASSIGNED.formatted(candidate.getId(), test.getId())));
 
         if (attemptRepository.existsByCandidateIdAndTestId(candidate.getId(), test.getId())) {
-            throw new IllegalArgumentException("No retakes allowed. Attempt already exists");
+            throw new IllegalArgumentException(MSG_NO_RETAKES.formatted(candidate.getId(), test.getId()));
         }
 
         List<QuestionEntity> allQuestions = questionRepository.findAllByTestId(testId);
         if (allQuestions.isEmpty()) {
-            throw new IllegalArgumentException("No questions configured for this test");
+            throw new IllegalArgumentException(MSG_NO_QUESTIONS_CONFIGURED + testId);
         }
 
         Collections.shuffle(allQuestions);
@@ -122,10 +132,10 @@ public class CandidateService {
     @Transactional
     public CandidateResponses.SubmitResponse submitAttempt(Long attemptId, CandidateDtos.SubmitAttemptRequest req) {
         AttemptEntity attempt = attemptRepository.findByIdAndCandidateId(attemptId, req.candidateId())
-                .orElseThrow(() -> new IllegalArgumentException("Attempt not found"));
+                .orElseThrow(() -> new IllegalArgumentException(MSG_ATTEMPT_NOT_FOUND.formatted(attemptId, req.candidateId())));
 
         if (Boolean.TRUE.equals(attempt.getFinished())) {
-            throw new IllegalArgumentException("Attempt already finished");
+            throw new IllegalArgumentException(MSG_ATTEMPT_ALREADY_FINISHED + attemptId);
         }
 
         List<AttemptQuestionEntity> selectedQuestions = attemptQuestionRepository.findAllByAttemptId(attemptId);
