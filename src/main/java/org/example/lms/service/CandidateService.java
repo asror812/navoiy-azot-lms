@@ -44,7 +44,14 @@ public class CandidateService {
             throw new IllegalArgumentException(MSG_CANDIDATE_INACTIVE + candidate.getId());
         }
 
-        if (!passwordEncoder.matches(req.password(), candidate.getPasswordHash())) {
+        boolean validPassword;
+        try {
+            validPassword = passwordEncoder.matches(req.password(), candidate.getPasswordHash());
+        } catch (IllegalArgumentException ex) {
+            validPassword = req.password().equals(candidate.getPasswordHash());
+        }
+
+        if (!validPassword) {
             throw new IllegalArgumentException(MSG_INVALID_LOGIN_OR_PASSWORD + ". login=" + req.login().trim());
         }
 

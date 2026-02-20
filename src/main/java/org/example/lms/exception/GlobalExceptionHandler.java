@@ -1,4 +1,4 @@
-package org.example.lms.controller;
+package org.example.lms.exception;
 
 import org.example.lms.dto.ApiResponse;
 import org.springframework.http.HttpStatus;

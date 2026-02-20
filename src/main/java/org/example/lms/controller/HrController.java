@@ -58,7 +58,8 @@ public class HrController {
     }
 
     @PutMapping("/candidates/{candidateId}")
-    public ApiResponse updateCandidate(@PathVariable(name = "candidateId") Long candidateId, @RequestBody HrDtos.UpdateCandidateRequest req) {
+    public ApiResponse updateCandidate(@PathVariable(name = "candidateId") Long candidateId,
+            @RequestBody HrDtos.UpdateCandidateRequest req) {
         return ApiResponse.ok("Candidate updated", hrService.updateCandidate(candidateId, req));
     }
 

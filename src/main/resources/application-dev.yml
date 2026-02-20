@@ -11,34 +11,3 @@ spring:
     database: postgresql
     hibernate:
       ddl-auto: update
-  mail:
-    host: smtp.gmail.com
-    port: 587
-    username: tvajoyibgoya@gmail.com
-    password: hmkg uttj apom eohv
-    properties:
-      mail:
-        smtp:
-          auth: true
-          starttls:
-            enable: true
-  messages:
-    basename: messages
-    encoding: UTF-8
-    fallback-to-system-locale: false
-    use-code-as-default-message: true
-  servlet:
-    multipart:
-      enabled: true
-      max-file-size: 150MB
-      max-request-size: 150MB
-      file-size-threshold: 150MB
-
-path:
-  resource:
-    prompts: prompts/answer_checker.txt
-
-exam:
-  appeal-deadline-seconds: 24h
-  duration-minutes: 90
-  question-count: 50

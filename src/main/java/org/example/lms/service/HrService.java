@@ -3,13 +3,13 @@ package org.example.lms.service;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.example.lms.dto.HrDtos;
+import org.example.lms.dto.HrResponses;
 import org.example.lms.entity.CandidateEntity;
 import org.example.lms.entity.OptionEntity;
 import org.example.lms.entity.QuestionEntity;
 import org.example.lms.repository.CandidateRepository;
 import org.example.lms.repository.OptionRepository;
 import org.example.lms.repository.QuestionRepository;
-import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -28,18 +28,21 @@ public class HrService {
     private final QuestionRepository questionRepository;
     private final OptionRepository optionRepository;
     private final CandidateRepository candidateRepository;
-    private final PasswordEncoder passwordEncoder;
 
-    public List<QuestionEntity> listTests() {
-        return questionRepository.findAllByActiveTrueOrderByIdDesc();
+    public List<HrResponses.TestResponse> listTests() {
+        return questionRepository.findAllByActiveTrueOrderByIdDesc().stream()
+                .map(this::toTestResponse)
+                .toList();
     }
 
-    public List<CandidateEntity> listCandidates() {
-        return candidateRepository.findAll();
+    public List<HrResponses.CandidateResponse> listCandidates() {
+        return candidateRepository.findAll().stream()
+                .map(this::toCandidateResponse)
+                .toList();
     }
 
     @Transactional
-    public QuestionEntity createTest(HrDtos.CreateTestRequest req, String hrUsername) {
+    public HrResponses.TestResponse createTest(HrDtos.CreateTestRequest req, String hrUsername) {
         long correctCount = req.options().stream().filter(HrDtos.OptionRequest::correct).count();
         if (correctCount != 1) {
             throw new IllegalArgumentException(MSG_EXACTLY_ONE_OPTION_CORRECT + ". currentCorrectCount=" + correctCount);
@@ -62,10 +65,10 @@ public class HrService {
                 .toList());
 
         log.info("HR {} created test(question) id={} title={}", hrUsername, question.getId(), question.getTitle());
-        return question;
+        return toTestResponse(question);
     }
 
-    public QuestionEntity updateTest(Long id, HrDtos.UpdateTestRequest req) {
+    public HrResponses.TestResponse updateTest(Long id, HrDtos.UpdateTestRequest req) {
         QuestionEntity question = questionRepository.findById(id)
                 .orElseThrow(() -> new IllegalArgumentException(MSG_TEST_NOT_FOUND_BY_ID + id));
 
@@ -84,7 +87,7 @@ public class HrService {
 
         QuestionEntity updated = questionRepository.save(question);
         log.info("Test(question) updated id={} title={}", updated.getId(), updated.getTitle());
-        return updated;
+        return toTestResponse(updated);
     }
 
     public void deleteTest(Long id) {
@@ -94,7 +97,7 @@ public class HrService {
         log.info("Test(question) deleted id={}", id);
     }
 
-    public CandidateEntity createCandidate(HrDtos.CreateCandidateRequest req) {
+    public HrResponses.CandidateResponse createCandidate(HrDtos.CreateCandidateRequest req) {
         if (candidateRepository.existsByLoginIgnoreCase(req.login())) {
             throw new IllegalArgumentException(MSG_CANDIDATE_LOGIN_ALREADY_EXISTS + req.login().trim());
         }
@@ -103,15 +106,16 @@ public class HrService {
                 .fullName(req.fullName())
                 .profession(req.profession().trim())
                 .login(req.login().trim())
-                .passwordHash(passwordEncoder.encode(req.password()))
+                .passwordHash(req.password())
                 .active(req.active() == null || req.active())
                 .build());
 
         log.info("Candidate created id={} login={}", saved.getId(), saved.getLogin());
-        return saved;
+
+        return toCandidateResponse(saved);
     }
 
-    public CandidateEntity updateCandidate(Long candidateId, HrDtos.UpdateCandidateRequest req) {
+    public HrResponses.CandidateResponse updateCandidate(Long candidateId, HrDtos.UpdateCandidateRequest req) {
         CandidateEntity candidate = candidateRepository.findById(candidateId)
                 .orElseThrow(() -> new IllegalArgumentException(MSG_CANDIDATE_NOT_FOUND_BY_ID + candidateId));
 
@@ -122,7 +126,7 @@ public class HrService {
             candidate.setProfession(req.profession().trim());
         }
         if (req.password() != null && !req.password().isBlank()) {
-            candidate.setPasswordHash(passwordEncoder.encode(req.password()));
+            candidate.setPasswordHash(req.password());
         }
         if (req.active() != null) {
             candidate.setActive(req.active());
@@ -130,7 +134,7 @@ public class HrService {
 
         CandidateEntity updated = candidateRepository.save(candidate);
         log.info("Candidate updated id={} login={}", updated.getId(), updated.getLogin());
-        return updated;
+        return toCandidateResponse(updated);
     }
 
     public void deleteCandidate(Long candidateId) {
@@ -139,7 +143,7 @@ public class HrService {
     }
 
     @Transactional
-    public QuestionEntity updateQuestion(Long questionId, HrDtos.UpdateQuestionRequest req) {
+    public HrResponses.TestResponse updateQuestion(Long questionId, HrDtos.UpdateQuestionRequest req) {
         QuestionEntity question = questionRepository.findById(questionId)
                 .orElseThrow(() -> new IllegalArgumentException(MSG_QUESTION_NOT_FOUND_BY_ID + questionId));
 
@@ -166,7 +170,7 @@ public class HrService {
         }
 
         log.info("Question updated id={}", questionId);
-        return question;
+        return toTestResponse(question);
     }
 
     @Transactional
@@ -175,5 +179,31 @@ public class HrService {
         optionRepository.deleteAll(oldOptions);
         questionRepository.deleteById(questionId);
         log.info("Question deleted id={}", questionId);
+    }
+
+    private HrResponses.TestResponse toTestResponse(QuestionEntity question) {
+        List<HrResponses.OptionResponse> options = optionRepository.findAllByQuestionId(question.getId()).stream()
+                .map(o -> new HrResponses.OptionResponse(o.getId(), o.getText(), o.getCorrect()))
+                .toList();
+        return new HrResponses.TestResponse(
+                question.getId(),
+                question.getTitle(),
+                question.getProfession(),
+                question.getText(),
+                question.getActive(),
+                question.getCreatedBy(),
+                options
+        );
+    }
+
+    private HrResponses.CandidateResponse toCandidateResponse(CandidateEntity candidate) {
+        return new HrResponses.CandidateResponse(
+                candidate.getId(),
+                candidate.getFullName(),
+                candidate.getProfession(),
+                candidate.getLogin(),
+                candidate.getPasswordHash(),
+                candidate.getActive()
+        );
     }
 }
