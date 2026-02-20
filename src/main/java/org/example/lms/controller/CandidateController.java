@@ -20,8 +20,8 @@ public class CandidateController {
     }
 
     @GetMapping("/{candidateId}/tests")
-    public ApiResponse listAssignedTests(@PathVariable Long candidateId) {
-        return ApiResponse.ok("OK", candidateService.listAssignedTests(candidateId));
+    public ApiResponse listRandomTests(@PathVariable Long candidateId) {
+        return ApiResponse.ok("OK", candidateService.listRandomTests(candidateId));
     }
 
     @PostMapping("/tests/start")

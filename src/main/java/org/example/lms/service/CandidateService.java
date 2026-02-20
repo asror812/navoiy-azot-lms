@@ -24,7 +24,7 @@ public class CandidateService {
     private static final String MSG_CANDIDATE_INACTIVE = "Candidate is inactive. candidateId=";
     private static final String MSG_CANDIDATE_NOT_FOUND_BY_ID = "Candidate not found. candidateId=";
     private static final String MSG_NO_RETAKES = "No retakes allowed. Attempt already exists for candidateId=";
-    private static final String MSG_NO_QUESTIONS_FOR_PROFESSION = "Not enough questions for profession=%s. required=30, available=%d";
+    private static final String MSG_NO_QUESTIONS_FOR_PROFESSION = "No questions found for profession=%s";
     private static final String MSG_ATTEMPT_NOT_FOUND = "Attempt not found. attemptId=%d, candidateId=%d";
     private static final String MSG_ATTEMPT_ALREADY_FINISHED = "Attempt already finished. attemptId=";
 
@@ -64,11 +64,16 @@ public class CandidateService {
         );
     }
 
-    public List<CandidateResponses.ProfessionTestResponse> listAssignedTests(Long candidateId) {
+    public List<CandidateResponses.ProfessionTestResponse> listRandomTests(Long candidateId) {
         CandidateEntity candidate = candidateRepository.findById(candidateId)
                 .orElseThrow(() -> new IllegalArgumentException(MSG_CANDIDATE_NOT_FOUND_BY_ID + candidateId));
 
-        return questionRepository.findAllByActiveTrueAndProfessionIgnoreCaseOrderByIdDesc(candidate.getProfession()).stream()
+        List<QuestionEntity> questions = new ArrayList<>(
+                questionRepository.findAllByActiveTrueAndProfessionIgnoreCaseOrderByIdDesc(candidate.getProfession()));
+        Collections.shuffle(questions);
+
+        return questions.stream()
+                .limit(QUESTIONS_PER_ATTEMPT)
                 .map(q -> new CandidateResponses.ProfessionTestResponse(q.getId(), q.getTitle(), q.getProfession()))
                 .toList();
     }
@@ -89,21 +94,22 @@ public class CandidateService {
         List<QuestionEntity> allQuestions = questionRepository
                 .findAllByActiveTrueAndProfessionIgnoreCaseOrderByIdDesc(candidate.getProfession());
 
-        if (allQuestions.size() < QUESTIONS_PER_ATTEMPT) {
+        if (allQuestions.isEmpty()) {
             throw new IllegalArgumentException(
-                    MSG_NO_QUESTIONS_FOR_PROFESSION.formatted(candidate.getProfession(), allQuestions.size())
+                    MSG_NO_QUESTIONS_FOR_PROFESSION.formatted(candidate.getProfession())
             );
         }
 
         Collections.shuffle(allQuestions);
 
-        List<QuestionEntity> selected = allQuestions.subList(0, QUESTIONS_PER_ATTEMPT);
+        int selectedCount = Math.min(QUESTIONS_PER_ATTEMPT, allQuestions.size());
+        List<QuestionEntity> selected = allQuestions.subList(0, selectedCount);
 
         AttemptEntity attempt = attemptRepository.save(AttemptEntity.builder()
                 .candidate(candidate)
                 .profession(candidate.getProfession())
                 .finished(false)
-                .totalQuestions(QUESTIONS_PER_ATTEMPT)
+                .totalQuestions(selectedCount)
                 .startedAt(LocalDateTime.now())
                 .build());
 
@@ -119,9 +125,9 @@ public class CandidateService {
         }).toList();
 
         log.info("Attempt started id={} candidateId={} profession={} questionCount={}",
-                attempt.getId(), candidate.getId(), candidate.getProfession(), QUESTIONS_PER_ATTEMPT);
+                attempt.getId(), candidate.getId(), candidate.getProfession(), selectedCount);
 
-        return new CandidateResponses.StartResponse(attempt.getId(), candidate.getProfession(), QUESTIONS_PER_ATTEMPT,
+        return new CandidateResponses.StartResponse(attempt.getId(), candidate.getProfession(), selectedCount,
                 questionPayloads);
     }
 
