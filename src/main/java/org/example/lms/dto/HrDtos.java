@@ -3,30 +3,32 @@ package org.example.lms.dto;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotEmpty;
 import jakarta.validation.constraints.NotNull;
+import jakarta.validation.constraints.Size;
 
 import java.util.List;
 
 public class HrDtos {
 
         public record CreateTestRequest(
-                        @NotBlank String title,
-                        @NotBlank String profession,
-                        Integer minQuestionsPerAttempt,
-                        Integer maxQuestionsPerAttempt,
+                        @NotBlank(message = "title is required") String title,
+                        @NotBlank(message = "profession is required") String profession,
+                        @NotBlank(message = "question text is required") String questionText,
+                        @NotEmpty(message = "options must not be empty")
+                        @Size(min = 2, message = "at least 2 options are required")
+                        List<@NotNull(message = "option must not be null") OptionRequest> options,
                         Boolean active) {
         }
 
         public record UpdateTestRequest(
                         String title,
                         String profession,
-                        Integer minQuestionsPerAttempt,
-                        Integer maxQuestionsPerAttempt,
+                        String questionText,
                         Boolean active) {
         }
 
         public record CreateQuestionRequest(
-                        @NotBlank String text,
-                        @NotEmpty List<@NotNull OptionRequest> options) {
+                        @NotBlank(message = "question text is required") String text,
+                        @NotEmpty(message = "options must not be empty") List<@NotNull(message = "option must not be null") OptionRequest> options) {
         }
 
         public record UpdateQuestionRequest(
@@ -35,15 +37,15 @@ public class HrDtos {
         }
 
         public record OptionRequest(
-                        @NotBlank String text,
-                        @NotNull Boolean correct) {
+                        @NotBlank(message = "option text is required") String text,
+                        @NotNull(message = "option correct flag is required") Boolean correct) {
         }
 
         public record CreateCandidateRequest(
-                        @NotBlank String fullName,
-                        @NotBlank String profession,
-                        @NotBlank String login,
-                        @NotBlank String password,
+                        @NotBlank(message = "fullName is required") String fullName,
+                        @NotBlank(message = "profession is required") String profession,
+                        @NotBlank(message = "login is required") String login,
+                        @NotBlank(message = "password is required") String password,
                         Boolean active) {
         }
 

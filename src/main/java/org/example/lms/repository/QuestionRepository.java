@@ -6,6 +6,6 @@ import org.springframework.data.jpa.repository.JpaRepository;
 import java.util.List;
 
 public interface QuestionRepository extends JpaRepository<QuestionEntity, Long> {
-    List<QuestionEntity> findAllByTestId(Long testId);
-    List<QuestionEntity> findAllByTestIdIn(List<Long> testIds);
+    List<QuestionEntity> findAllByActiveTrueOrderByIdDesc();
+    List<QuestionEntity> findAllByActiveTrueAndProfessionIgnoreCaseOrderByIdDesc(String profession);
 }

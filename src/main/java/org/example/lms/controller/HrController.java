@@ -36,11 +36,6 @@ public class HrController {
         return ApiResponse.ok("Test deleted", null);
     }
 
-    @PostMapping("/tests/{testId}/questions")
-    public ApiResponse addQuestion(@PathVariable Long testId, @Valid @RequestBody HrDtos.CreateQuestionRequest req) {
-        return ApiResponse.ok("Question created", hrService.addQuestion(testId, req));
-    }
-
     @PutMapping("/questions/{questionId}")
     public ApiResponse updateQuestion(@PathVariable Long questionId, @RequestBody HrDtos.UpdateQuestionRequest req) {
         return ApiResponse.ok("Question updated", hrService.updateQuestion(questionId, req));

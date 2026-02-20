@@ -7,6 +7,11 @@ import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 
+import java.util.ArrayList;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Map;
+
 @RestControllerAdvice
 public class GlobalExceptionHandler {
 
@@ -17,10 +22,19 @@ public class GlobalExceptionHandler {
 
     @ExceptionHandler(MethodArgumentNotValidException.class)
     public ResponseEntity<ApiResponse> handleValidation(MethodArgumentNotValidException ex) {
-        String msg = ex.getBindingResult().getFieldErrors().isEmpty()
-                ? "Validation failed"
-                : ex.getBindingResult().getFieldErrors().get(0).getDefaultMessage();
-        return ResponseEntity.badRequest().body(ApiResponse.fail(msg));
+        Map<String, List<String>> errors = new LinkedHashMap<>();
+
+        ex.getBindingResult().getFieldErrors().forEach(fieldError -> {
+            errors.computeIfAbsent(fieldError.getField(), key -> new ArrayList<>())
+                    .add(fieldError.getDefaultMessage());
+        });
+
+        ex.getBindingResult().getGlobalErrors().forEach(globalError -> {
+            errors.computeIfAbsent(globalError.getObjectName(), key -> new ArrayList<>())
+                    .add(globalError.getDefaultMessage());
+        });
+
+        return ResponseEntity.badRequest().body(ApiResponse.fail("Validation failed", errors));
     }
 
     @ExceptionHandler(Exception.class)

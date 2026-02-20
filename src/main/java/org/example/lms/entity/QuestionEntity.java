@@ -15,9 +15,17 @@ public class QuestionEntity {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    @ManyToOne(optional = false, fetch = FetchType.LAZY)
-    @JoinColumn(name = "test_id")
-    private TestEntity test;
+    @Column(nullable = false)
+    private String title;
+
+    @Column(nullable = false)
+    private String profession;
+
+    @Column(nullable = false)
+    private Boolean active;
+
+    @Column(nullable = false)
+    private String createdBy;
 
     @Column(nullable = false, columnDefinition = "text")
     private String text;

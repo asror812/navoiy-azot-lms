@@ -19,25 +19,22 @@ import java.util.stream.Collectors;
 @Slf4j
 @RequiredArgsConstructor
 public class CandidateService {
+    private static final int QUESTIONS_PER_ATTEMPT = 30;
     private static final String MSG_INVALID_LOGIN_OR_PASSWORD = "Invalid login or password";
     private static final String MSG_CANDIDATE_INACTIVE = "Candidate is inactive. candidateId=";
     private static final String MSG_CANDIDATE_NOT_FOUND_BY_ID = "Candidate not found. candidateId=";
     private static final String MSG_NO_RETAKES = "No retakes allowed. Attempt already exists for candidateId=";
-    private static final String MSG_NO_TESTS_FOR_PROFESSION = "No active tests found for profession=";
-    private static final String MSG_NO_QUESTIONS_FOR_PROFESSION = "No questions configured for profession=";
+    private static final String MSG_NO_QUESTIONS_FOR_PROFESSION = "Not enough questions for profession=%s. required=30, available=%d";
     private static final String MSG_ATTEMPT_NOT_FOUND = "Attempt not found. attemptId=%d, candidateId=%d";
     private static final String MSG_ATTEMPT_ALREADY_FINISHED = "Attempt already finished. attemptId=";
 
     private final CandidateRepository candidateRepository;
-    private final TestRepository testRepository;
     private final QuestionRepository questionRepository;
     private final OptionRepository optionRepository;
     private final AttemptRepository attemptRepository;
     private final AttemptQuestionRepository attemptQuestionRepository;
     private final AttemptAnswerRepository attemptAnswerRepository;
     private final PasswordEncoder passwordEncoder;
-
-    private static final Random random = new Random();
 
     public CandidateResponses.LoginResponse login(CandidateDtos.LoginRequest req) {
         CandidateEntity candidate = candidateRepository.findByLoginIgnoreCase(req.login().trim())
@@ -64,8 +61,8 @@ public class CandidateService {
         CandidateEntity candidate = candidateRepository.findById(candidateId)
                 .orElseThrow(() -> new IllegalArgumentException(MSG_CANDIDATE_NOT_FOUND_BY_ID + candidateId));
 
-        return testRepository.findAllByActiveTrueAndProfessionIgnoreCaseOrderByIdDesc(candidate.getProfession()).stream()
-                .map(t -> new CandidateResponses.ProfessionTestResponse(t.getId(), t.getTitle(), t.getProfession()))
+        return questionRepository.findAllByActiveTrueAndProfessionIgnoreCaseOrderByIdDesc(candidate.getProfession()).stream()
+                .map(q -> new CandidateResponses.ProfessionTestResponse(q.getId(), q.getTitle(), q.getProfession()))
                 .toList();
     }
 
@@ -82,29 +79,24 @@ public class CandidateService {
             throw new IllegalArgumentException(MSG_NO_RETAKES + candidate.getId());
         }
 
-        List<TestEntity> professionTests = testRepository
+        List<QuestionEntity> allQuestions = questionRepository
                 .findAllByActiveTrueAndProfessionIgnoreCaseOrderByIdDesc(candidate.getProfession());
-        if (professionTests.isEmpty()) {
-            throw new IllegalArgumentException(MSG_NO_TESTS_FOR_PROFESSION + candidate.getProfession());
-        }
 
-        List<Long> testIds = professionTests.stream().map(TestEntity::getId).toList();
-        List<QuestionEntity> allQuestions = questionRepository.findAllByTestIdIn(testIds);
-        if (allQuestions.isEmpty()) {
-            throw new IllegalArgumentException(MSG_NO_QUESTIONS_FOR_PROFESSION + candidate.getProfession());
+        if (allQuestions.size() < QUESTIONS_PER_ATTEMPT) {
+            throw new IllegalArgumentException(
+                    MSG_NO_QUESTIONS_FOR_PROFESSION.formatted(candidate.getProfession(), allQuestions.size())
+            );
         }
 
         Collections.shuffle(allQuestions);
 
-        int count = Math.min(40, allQuestions.size());
-
-        List<QuestionEntity> selected = allQuestions.subList(0, count);
+        List<QuestionEntity> selected = allQuestions.subList(0, QUESTIONS_PER_ATTEMPT);
 
         AttemptEntity attempt = attemptRepository.save(AttemptEntity.builder()
                 .candidate(candidate)
                 .profession(candidate.getProfession())
                 .finished(false)
-                .totalQuestions(count)
+                .totalQuestions(QUESTIONS_PER_ATTEMPT)
                 .startedAt(LocalDateTime.now())
                 .build());
 
@@ -120,8 +112,9 @@ public class CandidateService {
         }).toList();
 
         log.info("Attempt started id={} candidateId={} profession={} questionCount={}",
-                attempt.getId(), candidate.getId(), candidate.getProfession(), count);
-        return new CandidateResponses.StartResponse(attempt.getId(), candidate.getProfession(), count,
+                attempt.getId(), candidate.getId(), candidate.getProfession(), QUESTIONS_PER_ATTEMPT);
+
+        return new CandidateResponses.StartResponse(attempt.getId(), candidate.getProfession(), QUESTIONS_PER_ATTEMPT,
                 questionPayloads);
     }
 
@@ -187,6 +180,7 @@ public class CandidateService {
 
         log.info("Attempt submitted id={} candidateId={} score={}",
                 attempt.getId(), req.candidateId(), attempt.getScore());
+
         return new CandidateResponses.SubmitResponse(
                 attempt.getId(),
                 correct,

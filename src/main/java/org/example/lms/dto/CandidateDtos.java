@@ -8,20 +8,20 @@ import java.util.List;
 public class CandidateDtos {
 
         public record LoginRequest(
-                        @NotBlank String login,
-                        @NotBlank String password) {
+                        @NotBlank(message = "login is required") String login,
+                        @NotBlank(message = "password is required") String password) {
         }
 
-        public record StartTestRequest(@NotNull Long candidateId) {
+        public record StartTestRequest(@NotNull(message = "candidateId is required") Long candidateId) {
         }
 
         public record SubmitAttemptRequest(
-                        @NotNull Long candidateId,
-                        @NotNull List<AnswerRequest> answers) {
+                        @NotNull(message = "candidateId is required") Long candidateId,
+                        @NotNull(message = "answers are required") List<AnswerRequest> answers) {
         }
 
         public record AnswerRequest(
-                        @NotNull Long questionId,
+                        @NotNull(message = "questionId is required") Long questionId,
                         Long selectedOptionId) {
         }
 }

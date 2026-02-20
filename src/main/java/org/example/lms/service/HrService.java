@@ -3,8 +3,12 @@ package org.example.lms.service;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.example.lms.dto.HrDtos;
-import org.example.lms.entity.*;
-import org.example.lms.repository.*;
+import org.example.lms.entity.CandidateEntity;
+import org.example.lms.entity.OptionEntity;
+import org.example.lms.entity.QuestionEntity;
+import org.example.lms.repository.CandidateRepository;
+import org.example.lms.repository.OptionRepository;
+import org.example.lms.repository.QuestionRepository;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -15,82 +19,79 @@ import java.util.List;
 @Slf4j
 @RequiredArgsConstructor
 public class HrService {
-    private static final String MSG_INVALID_QUESTION_RANGE = "Invalid question range";
     private static final String MSG_EXACTLY_ONE_OPTION_CORRECT = "Exactly one option must be correct";
-    private static final String MSG_TEST_NOT_FOUND_BY_ID = "Test not found. testId=";
+    private static final String MSG_TEST_NOT_FOUND_BY_ID = "Test(question) not found. testId=";
     private static final String MSG_CANDIDATE_NOT_FOUND_BY_ID = "Candidate not found. candidateId=";
     private static final String MSG_QUESTION_NOT_FOUND_BY_ID = "Question not found. questionId=";
     private static final String MSG_CANDIDATE_LOGIN_ALREADY_EXISTS = "Candidate login already exists. login=";
 
-    private final TestRepository testRepository;
     private final QuestionRepository questionRepository;
     private final OptionRepository optionRepository;
     private final CandidateRepository candidateRepository;
     private final PasswordEncoder passwordEncoder;
 
-    public List<TestEntity> listTests() {
-        return testRepository.findAll();
+    public List<QuestionEntity> listTests() {
+        return questionRepository.findAllByActiveTrueOrderByIdDesc();
     }
 
     public List<CandidateEntity> listCandidates() {
         return candidateRepository.findAll();
     }
 
-    public TestEntity createTest(HrDtos.CreateTestRequest req, String hrUsername) {
-        int min = req.minQuestionsPerAttempt() == null ? 30 : req.minQuestionsPerAttempt();
-        int max = req.maxQuestionsPerAttempt() == null ? 40 : req.maxQuestionsPerAttempt();
-
-        if (min < 1 || max < min) {
-            throw new IllegalArgumentException(MSG_INVALID_QUESTION_RANGE + ". min=" + min + ", max=" + max);
+    @Transactional
+    public QuestionEntity createTest(HrDtos.CreateTestRequest req, String hrUsername) {
+        long correctCount = req.options().stream().filter(HrDtos.OptionRequest::correct).count();
+        if (correctCount != 1) {
+            throw new IllegalArgumentException(MSG_EXACTLY_ONE_OPTION_CORRECT + ". currentCorrectCount=" + correctCount);
         }
 
-        TestEntity entity = TestEntity.builder()
-                .title(req.title())
+        QuestionEntity question = questionRepository.save(QuestionEntity.builder()
+                .title(req.title().trim())
                 .profession(req.profession().trim())
                 .active(req.active() == null || req.active())
-                .minQuestionsPerAttempt(min)
-                .maxQuestionsPerAttempt(max)
                 .createdBy(hrUsername)
-                .build();
+                .text(req.questionText().trim())
+                .build());
 
-        TestEntity saved = testRepository.save(entity);
-        log.info("HR {} created test id={} title={}", hrUsername, saved.getId(), saved.getTitle());
-        return saved;
+        optionRepository.saveAll(req.options().stream()
+                .map(o -> OptionEntity.builder()
+                        .question(question)
+                        .text(o.text())
+                        .correct(o.correct())
+                        .build())
+                .toList());
+
+        log.info("HR {} created test(question) id={} title={}", hrUsername, question.getId(), question.getTitle());
+        return question;
     }
 
-    public TestEntity updateTest(Long id, HrDtos.UpdateTestRequest req) {
-        TestEntity test = testRepository.findById(id)
+    public QuestionEntity updateTest(Long id, HrDtos.UpdateTestRequest req) {
+        QuestionEntity question = questionRepository.findById(id)
                 .orElseThrow(() -> new IllegalArgumentException(MSG_TEST_NOT_FOUND_BY_ID + id));
 
         if (req.title() != null && !req.title().isBlank()) {
-            test.setTitle(req.title());
+            question.setTitle(req.title().trim());
         }
         if (req.profession() != null && !req.profession().isBlank()) {
-            test.setProfession(req.profession().trim());
+            question.setProfession(req.profession().trim());
         }
         if (req.active() != null) {
-            test.setActive(req.active());
+            question.setActive(req.active());
         }
-        if (req.minQuestionsPerAttempt() != null) {
-            test.setMinQuestionsPerAttempt(req.minQuestionsPerAttempt());
-        }
-        if (req.maxQuestionsPerAttempt() != null) {
-            test.setMaxQuestionsPerAttempt(req.maxQuestionsPerAttempt());
-        }
-        if (test.getMaxQuestionsPerAttempt() < test.getMinQuestionsPerAttempt()) {
-            throw new IllegalArgumentException(MSG_INVALID_QUESTION_RANGE
-                    + ". min=" + test.getMinQuestionsPerAttempt()
-                    + ", max=" + test.getMaxQuestionsPerAttempt());
+        if (req.questionText() != null && !req.questionText().isBlank()) {
+            question.setText(req.questionText().trim());
         }
 
-        TestEntity updated = testRepository.save(test);
-        log.info("Test updated id={} title={}", updated.getId(), updated.getTitle());
+        QuestionEntity updated = questionRepository.save(question);
+        log.info("Test(question) updated id={} title={}", updated.getId(), updated.getTitle());
         return updated;
     }
 
     public void deleteTest(Long id) {
-        testRepository.deleteById(id);
-        log.info("Test deleted id={}", id);
+        List<OptionEntity> oldOptions = optionRepository.findAllByQuestionId(id);
+        optionRepository.deleteAll(oldOptions);
+        questionRepository.deleteById(id);
+        log.info("Test(question) deleted id={}", id);
     }
 
     public CandidateEntity createCandidate(HrDtos.CreateCandidateRequest req) {
@@ -138,34 +139,6 @@ public class HrService {
     }
 
     @Transactional
-    public QuestionEntity addQuestion(Long testId, HrDtos.CreateQuestionRequest req) {
-        TestEntity test = testRepository.findById(testId)
-                .orElseThrow(() -> new IllegalArgumentException(MSG_TEST_NOT_FOUND_BY_ID + testId));
-
-        long correctCount = req.options().stream().filter(HrDtos.OptionRequest::correct).count();
-        if (correctCount != 1) {
-            throw new IllegalArgumentException(MSG_EXACTLY_ONE_OPTION_CORRECT + ". currentCorrectCount=" + correctCount);
-        }
-
-        QuestionEntity question = questionRepository.save(QuestionEntity.builder()
-                .test(test)
-                .text(req.text())
-                .build());
-
-        List<OptionEntity> options = req.options().stream()
-                .map(o -> OptionEntity.builder()
-                        .question(question)
-                        .text(o.text())
-                        .correct(o.correct())
-                        .build())
-                .toList();
-
-        optionRepository.saveAll(options);
-        log.info("Question created id={} testId={}", question.getId(), testId);
-        return question;
-    }
-
-    @Transactional
     public QuestionEntity updateQuestion(Long questionId, HrDtos.UpdateQuestionRequest req) {
         QuestionEntity question = questionRepository.findById(questionId)
                 .orElseThrow(() -> new IllegalArgumentException(MSG_QUESTION_NOT_FOUND_BY_ID + questionId));
@@ -178,7 +151,8 @@ public class HrService {
         if (req.options() != null && !req.options().isEmpty()) {
             long correctCount = req.options().stream().filter(HrDtos.OptionRequest::correct).count();
             if (correctCount != 1) {
-                throw new IllegalArgumentException(MSG_EXACTLY_ONE_OPTION_CORRECT + ". currentCorrectCount=" + correctCount);
+                throw new IllegalArgumentException(
+                        MSG_EXACTLY_ONE_OPTION_CORRECT + ". currentCorrectCount=" + correctCount);
             }
             List<OptionEntity> oldOptions = optionRepository.findAllByQuestionId(questionId);
             optionRepository.deleteAll(oldOptions);
