@@ -1,0 +1,37 @@
+package org.example.navoiyazotlms.simple.controller;
+
+import jakarta.validation.Valid;
+import lombok.RequiredArgsConstructor;
+import org.example.navoiyazotlms.simple.dto.ApiResponse;
+import org.example.navoiyazotlms.simple.dto.CandidateDtos;
+import org.example.navoiyazotlms.simple.service.CandidateService;
+import org.springframework.web.bind.annotation.*;
+
+@RestController
+@RequestMapping("/api/candidate")
+@RequiredArgsConstructor
+public class CandidateController {
+
+    private final CandidateService candidateService;
+
+    @PostMapping("/auth/login")
+    public ApiResponse login(@Valid @RequestBody CandidateDtos.LoginRequest req) {
+        return ApiResponse.ok("Login success", candidateService.login(req));
+    }
+
+    @GetMapping("/{candidateId}/tests")
+    public ApiResponse listAssignedTests(@PathVariable Long candidateId) {
+        return ApiResponse.ok("OK", candidateService.listAssignedTests(candidateId));
+    }
+
+    @PostMapping("/tests/{testId}/start")
+    public ApiResponse start(@PathVariable Long testId, @Valid @RequestBody CandidateDtos.StartTestRequest req) {
+        return ApiResponse.ok("Started", candidateService.startTest(testId, req));
+    }
+
+    @PostMapping("/attempts/{attemptId}/submit")
+    public ApiResponse submit(@PathVariable Long attemptId,
+            @Valid @RequestBody CandidateDtos.SubmitAttemptRequest req) {
+        return ApiResponse.ok("Submitted", candidateService.submitAttempt(attemptId, req));
+    }
+}

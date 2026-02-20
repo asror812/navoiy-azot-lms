@@ -1,0 +1,50 @@
+workflow:
+  rules:
+    - if: '$CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH'
+
+variables:
+  CHART_VERSION: 10.2-full
+  CI_DEBUG_TRACE: "false"
+  SERVICE_NAME: navoiy-azot-lms-backend
+
+
+stages:
+  - compile
+  - build
+  - deploy
+
+compile:
+  stage: compile
+  image: gradle:7.5.1-jdk17
+  script:
+    - sh gradlew clean bootJar
+    - find build/ -name "*.jar"
+  artifacts:
+    paths:
+      - build/libs/*.jar
+    expire_in: 3 days
+
+
+build:
+  stage: build
+  image: docker:24.0.9
+  services:
+    - docker:24.0.9-dind
+  script:
+    - docker login -u "${CI_REGISTRY_USER}" -p "${CI_REGISTRY_PASSWORD}" "${CI_REGISTRY}"
+    - docker build -t "${CI_REGISTRY_IMAGE}:latest" .
+    - docker push "${CI_REGISTRY_IMAGE}:latest"
+
+deploy:
+  stage: deploy
+  image: alpine:3.19
+  script:
+    - chmod og= $SSH_PRIVATE_KEY
+    - apk update && apk add openssh-client
+    - ssh -i $SSH_PRIVATE_KEY -o StrictHostKeyChecking=no -p $SSH_PORT $SSH_USER@$SERVER_HOST "docker login ${CI_REGISTRY} -u ${CI_REGISTRY_USER} --password ${CI_REGISTRY_PASSWORD}"
+    - ssh -i $SSH_PRIVATE_KEY -o StrictHostKeyChecking=no -p $SSH_PORT $SSH_USER@$SERVER_HOST "docker pull ${CI_REGISTRY_IMAGE}:latest"
+    - ssh -i $SSH_PRIVATE_KEY -o StrictHostKeyChecking=no -p $SSH_PORT $SSH_USER@$SERVER_HOST "docker stop ${SERVICE_NAME} || true"
+    - ssh -i $SSH_PRIVATE_KEY -o StrictHostKeyChecking=no -p $SSH_PORT $SSH_USER@$SERVER_HOST "docker rm ${SERVICE_NAME} || true"
+    - ssh -i $SSH_PRIVATE_KEY -o StrictHostKeyChecking=no -p $SSH_PORT $SSH_USER@$SERVER_HOST "docker run -d --name ${SERVICE_NAME} --restart unless-stopped -p 8084:8080 ${CI_REGISTRY_IMAGE}:latest"
+
+
