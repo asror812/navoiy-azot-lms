@@ -7,7 +7,7 @@ import java.time.LocalDateTime;
 
 @Entity
 @Table(name = "simple_attempts", uniqueConstraints = {
-        @UniqueConstraint(columnNames = { "candidate_id", "test_id" })
+        @UniqueConstraint(columnNames = { "candidate_id" })
 })
 @Getter
 @Setter
@@ -23,9 +23,8 @@ public class AttemptEntity {
     @JoinColumn(name = "candidate_id")
     private CandidateEntity candidate;
 
-    @ManyToOne(optional = false, fetch = FetchType.LAZY)
-    @JoinColumn(name = "test_id")
-    private TestEntity test;
+    @Column(nullable = false)
+    private String profession;
 
     @Column(nullable = false)
     private Boolean finished;

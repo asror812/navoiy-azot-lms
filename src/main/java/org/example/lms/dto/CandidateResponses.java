@@ -3,13 +3,13 @@ package org.example.lms.dto;
 import java.util.List;
 
 public class CandidateResponses {
-    public record LoginResponse(Long candidateId, String fullName, String login) {
+    public record LoginResponse(Long candidateId, String fullName, String profession, String login) {
     }
 
-    public record AssignedTestResponse(Long testId, String title) {
+    public record ProfessionTestResponse(Long testId, String title, String profession) {
     }
 
-    public record StartResponse(Long attemptId, Long testId, String testTitle, Integer totalQuestions,
+    public record StartResponse(Long attemptId, String profession, Integer totalQuestions,
             List<QuestionPayload> questions) {
     }
 

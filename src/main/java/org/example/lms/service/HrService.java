@@ -9,7 +9,6 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.time.LocalDateTime;
 import java.util.List;
 
 @Service
@@ -21,14 +20,12 @@ public class HrService {
     private static final String MSG_TEST_NOT_FOUND_BY_ID = "Test not found. testId=";
     private static final String MSG_CANDIDATE_NOT_FOUND_BY_ID = "Candidate not found. candidateId=";
     private static final String MSG_QUESTION_NOT_FOUND_BY_ID = "Question not found. questionId=";
-    private static final String MSG_ASSIGNMENT_NOT_FOUND = "Assignment not found. candidateId=%d, testId=%d";
     private static final String MSG_CANDIDATE_LOGIN_ALREADY_EXISTS = "Candidate login already exists. login=";
 
     private final TestRepository testRepository;
     private final QuestionRepository questionRepository;
     private final OptionRepository optionRepository;
     private final CandidateRepository candidateRepository;
-    private final TestAssignmentRepository testAssignmentRepository;
     private final PasswordEncoder passwordEncoder;
 
     public List<TestEntity> listTests() {
@@ -49,6 +46,7 @@ public class HrService {
 
         TestEntity entity = TestEntity.builder()
                 .title(req.title())
+                .profession(req.profession().trim())
                 .active(req.active() == null || req.active())
                 .minQuestionsPerAttempt(min)
                 .maxQuestionsPerAttempt(max)
@@ -66,6 +64,9 @@ public class HrService {
 
         if (req.title() != null && !req.title().isBlank()) {
             test.setTitle(req.title());
+        }
+        if (req.profession() != null && !req.profession().isBlank()) {
+            test.setProfession(req.profession().trim());
         }
         if (req.active() != null) {
             test.setActive(req.active());
@@ -99,6 +100,7 @@ public class HrService {
 
         CandidateEntity saved = candidateRepository.save(CandidateEntity.builder()
                 .fullName(req.fullName())
+                .profession(req.profession().trim())
                 .login(req.login().trim())
                 .passwordHash(passwordEncoder.encode(req.password()))
                 .active(req.active() == null || req.active())
@@ -115,6 +117,9 @@ public class HrService {
         if (req.fullName() != null && !req.fullName().isBlank()) {
             candidate.setFullName(req.fullName());
         }
+        if (req.profession() != null && !req.profession().isBlank()) {
+            candidate.setProfession(req.profession().trim());
+        }
         if (req.password() != null && !req.password().isBlank()) {
             candidate.setPasswordHash(passwordEncoder.encode(req.password()));
         }
@@ -130,37 +135,6 @@ public class HrService {
     public void deleteCandidate(Long candidateId) {
         candidateRepository.deleteById(candidateId);
         log.info("Candidate deleted id={}", candidateId);
-    }
-
-    public TestAssignmentEntity assignTest(Long candidateId, Long testId) {
-        CandidateEntity candidate = candidateRepository.findById(candidateId)
-                .orElseThrow(() -> new IllegalArgumentException(MSG_CANDIDATE_NOT_FOUND_BY_ID + candidateId));
-        TestEntity test = testRepository.findById(testId)
-                .orElseThrow(() -> new IllegalArgumentException(MSG_TEST_NOT_FOUND_BY_ID + testId));
-
-        TestAssignmentEntity assignment = testAssignmentRepository
-                .findByCandidateIdAndTestIdAndActiveTrue(candidateId, testId)
-                .orElseGet(() -> TestAssignmentEntity.builder()
-                        .candidate(candidate)
-                        .test(test)
-                        .active(true)
-                        .assignedAt(LocalDateTime.now())
-                        .build());
-
-        assignment.setActive(true);
-        assignment.setAssignedAt(LocalDateTime.now());
-        TestAssignmentEntity saved = testAssignmentRepository.save(assignment);
-        log.info("Test assigned candidateId={} testId={}", candidateId, testId);
-        return saved;
-    }
-
-    public void unassignTest(Long candidateId, Long testId) {
-        TestAssignmentEntity assignment = testAssignmentRepository
-                .findByCandidateIdAndTestIdAndActiveTrue(candidateId, testId)
-                .orElseThrow(() -> new IllegalArgumentException(MSG_ASSIGNMENT_NOT_FOUND.formatted(candidateId, testId)));
-        assignment.setActive(false);
-        testAssignmentRepository.save(assignment);
-        log.info("Test unassigned candidateId={} testId={}", candidateId, testId);
     }
 
     @Transactional

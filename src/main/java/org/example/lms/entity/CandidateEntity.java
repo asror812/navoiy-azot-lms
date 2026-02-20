@@ -21,6 +21,9 @@ public class CandidateEntity {
     private String fullName;
 
     @Column(nullable = false)
+    private String profession;
+
+    @Column(nullable = false)
     private String login;
 
     @Column(nullable = false)

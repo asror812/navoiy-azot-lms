@@ -22,11 +22,9 @@ public class CandidateService {
     private static final String MSG_INVALID_LOGIN_OR_PASSWORD = "Invalid login or password";
     private static final String MSG_CANDIDATE_INACTIVE = "Candidate is inactive. candidateId=";
     private static final String MSG_CANDIDATE_NOT_FOUND_BY_ID = "Candidate not found. candidateId=";
-    private static final String MSG_TEST_NOT_FOUND_BY_ID = "Test not found. testId=";
-    private static final String MSG_TEST_INACTIVE = "Test is inactive. testId=";
-    private static final String MSG_TEST_NOT_ASSIGNED = "This test is not assigned by HR. candidateId=%d, testId=%d";
-    private static final String MSG_NO_RETAKES = "No retakes allowed. Attempt already exists for candidateId=%d, testId=%d";
-    private static final String MSG_NO_QUESTIONS_CONFIGURED = "No questions configured for this test. testId=";
+    private static final String MSG_NO_RETAKES = "No retakes allowed. Attempt already exists for candidateId=";
+    private static final String MSG_NO_TESTS_FOR_PROFESSION = "No active tests found for profession=";
+    private static final String MSG_NO_QUESTIONS_FOR_PROFESSION = "No questions configured for profession=";
     private static final String MSG_ATTEMPT_NOT_FOUND = "Attempt not found. attemptId=%d, candidateId=%d";
     private static final String MSG_ATTEMPT_ALREADY_FINISHED = "Attempt already finished. attemptId=";
 
@@ -37,7 +35,6 @@ public class CandidateService {
     private final AttemptRepository attemptRepository;
     private final AttemptQuestionRepository attemptQuestionRepository;
     private final AttemptAnswerRepository attemptAnswerRepository;
-    private final TestAssignmentRepository testAssignmentRepository;
     private final PasswordEncoder passwordEncoder;
 
     private static final Random random = new Random();
@@ -55,18 +52,25 @@ public class CandidateService {
         }
 
         log.info("Candidate login success id={} login={}", candidate.getId(), candidate.getLogin());
-        return new CandidateResponses.LoginResponse(candidate.getId(), candidate.getFullName(), candidate.getLogin());
+        return new CandidateResponses.LoginResponse(
+                candidate.getId(),
+                candidate.getFullName(),
+                candidate.getProfession(),
+                candidate.getLogin()
+        );
     }
 
-    public List<CandidateResponses.AssignedTestResponse> listAssignedTests(Long candidateId) {
-        return testAssignmentRepository.findAllByCandidateIdAndActiveTrue(candidateId).stream()
-                .filter(a -> Boolean.TRUE.equals(a.getTest().getActive()))
-                .map(a -> new CandidateResponses.AssignedTestResponse(a.getTest().getId(), a.getTest().getTitle()))
+    public List<CandidateResponses.ProfessionTestResponse> listAssignedTests(Long candidateId) {
+        CandidateEntity candidate = candidateRepository.findById(candidateId)
+                .orElseThrow(() -> new IllegalArgumentException(MSG_CANDIDATE_NOT_FOUND_BY_ID + candidateId));
+
+        return testRepository.findAllByActiveTrueAndProfessionIgnoreCaseOrderByIdDesc(candidate.getProfession()).stream()
+                .map(t -> new CandidateResponses.ProfessionTestResponse(t.getId(), t.getTitle(), t.getProfession()))
                 .toList();
     }
 
     @Transactional
-    public CandidateResponses.StartResponse startTest(Long testId, CandidateDtos.StartTestRequest req) {
+    public CandidateResponses.StartResponse startTest(CandidateDtos.StartTestRequest req) {
         CandidateEntity candidate = candidateRepository.findById(req.candidateId())
                 .orElseThrow(() -> new IllegalArgumentException(MSG_CANDIDATE_NOT_FOUND_BY_ID + req.candidateId()));
 
@@ -74,39 +78,31 @@ public class CandidateService {
             throw new IllegalArgumentException(MSG_CANDIDATE_INACTIVE + candidate.getId());
         }
 
-        TestEntity test = testRepository.findById(testId)
-                .orElseThrow(() -> new IllegalArgumentException(MSG_TEST_NOT_FOUND_BY_ID + testId));
-
-        if (!Boolean.TRUE.equals(test.getActive())) {
-            throw new IllegalArgumentException(MSG_TEST_INACTIVE + testId);
+        if (attemptRepository.existsByCandidateId(candidate.getId())) {
+            throw new IllegalArgumentException(MSG_NO_RETAKES + candidate.getId());
         }
 
-        testAssignmentRepository.findByCandidateIdAndTestIdAndActiveTrue(candidate.getId(), test.getId())
-                .orElseThrow(() -> new IllegalArgumentException(MSG_TEST_NOT_ASSIGNED.formatted(candidate.getId(), test.getId())));
-
-        if (attemptRepository.existsByCandidateIdAndTestId(candidate.getId(), test.getId())) {
-            throw new IllegalArgumentException(MSG_NO_RETAKES.formatted(candidate.getId(), test.getId()));
+        List<TestEntity> professionTests = testRepository
+                .findAllByActiveTrueAndProfessionIgnoreCaseOrderByIdDesc(candidate.getProfession());
+        if (professionTests.isEmpty()) {
+            throw new IllegalArgumentException(MSG_NO_TESTS_FOR_PROFESSION + candidate.getProfession());
         }
 
-        List<QuestionEntity> allQuestions = questionRepository.findAllByTestId(testId);
+        List<Long> testIds = professionTests.stream().map(TestEntity::getId).toList();
+        List<QuestionEntity> allQuestions = questionRepository.findAllByTestIdIn(testIds);
         if (allQuestions.isEmpty()) {
-            throw new IllegalArgumentException(MSG_NO_QUESTIONS_CONFIGURED + testId);
+            throw new IllegalArgumentException(MSG_NO_QUESTIONS_FOR_PROFESSION + candidate.getProfession());
         }
 
         Collections.shuffle(allQuestions);
 
-        int boundedMin = Math.min(test.getMinQuestionsPerAttempt(), allQuestions.size());
-        int boundedMax = Math.min(test.getMaxQuestionsPerAttempt(), allQuestions.size());
-        int count = boundedMin;
-        if (boundedMax > boundedMin) {
-            count = boundedMin + random.nextInt(boundedMax - boundedMin + 1);
-        }
+        int count = Math.min(40, allQuestions.size());
 
         List<QuestionEntity> selected = allQuestions.subList(0, count);
 
         AttemptEntity attempt = attemptRepository.save(AttemptEntity.builder()
                 .candidate(candidate)
-                .test(test)
+                .profession(candidate.getProfession())
                 .finished(false)
                 .totalQuestions(count)
                 .startedAt(LocalDateTime.now())
@@ -123,9 +119,9 @@ public class CandidateService {
             return new CandidateResponses.QuestionPayload(q.getId(), q.getText(), options);
         }).toList();
 
-        log.info("Attempt started id={} candidateId={} testId={} questionCount={}",
-                attempt.getId(), candidate.getId(), test.getId(), count);
-        return new CandidateResponses.StartResponse(attempt.getId(), test.getId(), test.getTitle(), count,
+        log.info("Attempt started id={} candidateId={} profession={} questionCount={}",
+                attempt.getId(), candidate.getId(), candidate.getProfession(), count);
+        return new CandidateResponses.StartResponse(attempt.getId(), candidate.getProfession(), count,
                 questionPayloads);
     }
 

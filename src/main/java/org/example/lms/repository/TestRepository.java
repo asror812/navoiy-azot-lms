@@ -7,4 +7,5 @@ import java.util.List;
 
 public interface TestRepository extends JpaRepository<TestEntity, Long> {
     List<TestEntity> findAllByActiveTrueOrderByIdDesc();
+    List<TestEntity> findAllByActiveTrueAndProfessionIgnoreCaseOrderByIdDesc(String profession);
 }

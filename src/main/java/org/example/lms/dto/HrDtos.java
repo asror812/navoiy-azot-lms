@@ -10,6 +10,7 @@ public class HrDtos {
 
         public record CreateTestRequest(
                         @NotBlank String title,
+                        @NotBlank String profession,
                         Integer minQuestionsPerAttempt,
                         Integer maxQuestionsPerAttempt,
                         Boolean active) {
@@ -17,6 +18,7 @@ public class HrDtos {
 
         public record UpdateTestRequest(
                         String title,
+                        String profession,
                         Integer minQuestionsPerAttempt,
                         Integer maxQuestionsPerAttempt,
                         Boolean active) {
@@ -39,6 +41,7 @@ public class HrDtos {
 
         public record CreateCandidateRequest(
                         @NotBlank String fullName,
+                        @NotBlank String profession,
                         @NotBlank String login,
                         @NotBlank String password,
                         Boolean active) {
@@ -46,6 +49,7 @@ public class HrDtos {
 
         public record UpdateCandidateRequest(
                         String fullName,
+                        String profession,
                         String password,
                         Boolean active) {
         }

@@ -19,6 +19,9 @@ public class TestEntity {
     private String title;
 
     @Column(nullable = false)
+    private String profession;
+
+    @Column(nullable = false)
     private Boolean active;
 
     @Column(nullable = false)

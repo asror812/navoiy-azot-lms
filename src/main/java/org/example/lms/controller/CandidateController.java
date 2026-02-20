@@ -24,9 +24,9 @@ public class CandidateController {
         return ApiResponse.ok("OK", candidateService.listAssignedTests(candidateId));
     }
 
-    @PostMapping("/tests/{testId}/start")
-    public ApiResponse start(@PathVariable Long testId, @Valid @RequestBody CandidateDtos.StartTestRequest req) {
-        return ApiResponse.ok("Started", candidateService.startTest(testId, req));
+    @PostMapping("/tests/start")
+    public ApiResponse start(@Valid @RequestBody CandidateDtos.StartTestRequest req) {
+        return ApiResponse.ok("Started", candidateService.startTest(req));
     }
 
     @PostMapping("/attempts/{attemptId}/submit")

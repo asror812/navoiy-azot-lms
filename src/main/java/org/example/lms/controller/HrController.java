@@ -73,14 +73,4 @@ public class HrController {
         return ApiResponse.ok("Candidate deleted", null);
     }
 
-    @PostMapping("/candidates/{candidateId}/tests/{testId}/assign")
-    public ApiResponse assignTest(@PathVariable Long candidateId, @PathVariable Long testId) {
-        return ApiResponse.ok("Test assigned", hrService.assignTest(candidateId, testId));
-    }
-
-    @PostMapping("/candidates/{candidateId}/tests/{testId}/unassign")
-    public ApiResponse unassignTest(@PathVariable Long candidateId, @PathVariable Long testId) {
-        hrService.unassignTest(candidateId, testId);
-        return ApiResponse.ok("Test unassigned", null);
-    }
 }
