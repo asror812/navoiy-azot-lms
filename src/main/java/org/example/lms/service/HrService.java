@@ -38,6 +38,7 @@ public class HrService {
 
     public List<HrResponses.TestResponse> listTests() {
         List<QuestionEntity> questions = questionRepository.findAllByActiveTrueOrderByIdDesc();
+
         Map<Long, List<OptionEntity>> optionsByQuestionId = mapOptionsByQuestionId(
                 questions.stream().map(QuestionEntity::getId).toList()
         );
@@ -62,6 +63,7 @@ public class HrService {
     @Transactional
     public HrResponses.JobResponse createJob(HrDtos.CreateJobRequest req) {
         String name = req.name().trim();
+
         if (jobRepository.existsByNameIgnoreCase(name)) {
             throw new IllegalArgumentException(MSG_JOB_NAME_ALREADY_EXISTS + name);
         }
@@ -89,18 +91,22 @@ public class HrService {
             if (jobRepository.existsByNameIgnoreCaseAndIdNot(nextName, jobId)) {
                 throw new IllegalArgumentException(MSG_JOB_NAME_ALREADY_EXISTS + nextName);
             }
+
             job.setName(nextName);
             renameProfessionEverywhere(previousName, nextName);
         }
+
         if (req.description() != null) {
             job.setDescription(req.description().isBlank() ? null : req.description().trim());
         }
+
         if (req.active() != null) {
             job.setActive(req.active());
         }
 
         JobEntity updated = jobRepository.save(job);
         log.info("Job updated id={} name={}", updated.getId(), updated.getName());
+
         return toJobResponse(updated);
     }
 
@@ -111,12 +117,14 @@ public class HrService {
 
         long questionCount = questionRepository.countByProfessionIgnoreCase(job.getName());
         long candidateCount = candidateRepository.countByProfessionIgnoreCase(job.getName());
+
         if (questionCount > 0 || candidateCount > 0) {
             throw new IllegalArgumentException("Cannot delete job with linked candidates/questions. candidateCount="
                     + candidateCount + ", questionCount=" + questionCount);
         }
 
         jobRepository.delete(job);
+
         log.info("Job deleted id={} name={}", job.getId(), job.getName());
     }
 
@@ -147,6 +155,7 @@ public class HrService {
                 .toList());
 
         log.info("HR {} created test(question) id={} title={}", hrUsername, question.getId(), question.getTitle());
+
         return toTestResponse(question);
     }
 
@@ -185,6 +194,7 @@ public class HrService {
         if (attemptQuestionRepository.existsByQuestionId(id)) {
             throw new IllegalArgumentException("Cannot delete question used in attempts. questionId=" + id);
         }
+
         List<OptionEntity> oldOptions = optionRepository.findAllByQuestionId(id);
         optionRepository.deleteAll(oldOptions);
         questionRepository.deleteById(id);
@@ -194,6 +204,7 @@ public class HrService {
     @Transactional
     public HrResponses.CandidateResponse createCandidate(HrDtos.CreateCandidateRequest req) {
         String login = req.login().trim();
+
         if (candidateRepository.existsByLoginIgnoreCase(login)) {
             throw new IllegalArgumentException(MSG_CANDIDATE_LOGIN_ALREADY_EXISTS + login);
         }
@@ -210,6 +221,7 @@ public class HrService {
                 .build());
 
         log.info("Candidate created id={} login={}", saved.getId(), saved.getLogin());
+
         return toCandidateResponse(saved);
     }
 
@@ -221,14 +233,17 @@ public class HrService {
         if (req.fullName() != null && !req.fullName().isBlank()) {
             candidate.setFullName(req.fullName().trim());
         }
+
         if (req.profession() != null && !req.profession().isBlank()) {
             String profession = req.profession().trim();
             ensureJobExists(profession);
             candidate.setProfession(profession);
         }
+
         if (req.password() != null && !req.password().isBlank()) {
             candidate.setPasswordHash(normalizePasswordForStorage(req.password()));
         }
+
         if (req.active() != null) {
             candidate.setActive(req.active());
         }
@@ -261,6 +276,7 @@ public class HrService {
         if (attemptRepository.countByCandidateId(candidateId) > 0) {
             throw new IllegalArgumentException("Cannot delete candidate with attempts. candidateId=" + candidateId);
         }
+
         candidateRepository.deleteById(candidateId);
         log.info("Candidate deleted id={}", candidateId);
     }
@@ -273,6 +289,7 @@ public class HrService {
         if (req.text() != null && !req.text().isBlank()) {
             question.setText(req.text().trim());
         }
+
         questionRepository.save(question);
 
         if (req.options() != null && !req.options().isEmpty()) {
@@ -293,12 +310,8 @@ public class HrService {
         }
 
         log.info("Question updated id={}", questionId);
-        return toTestResponse(question);
-    }
 
-    @Transactional
-    public void deleteQuestion(Long questionId) {
-        deleteTest(questionId);
+        return toTestResponse(question);
     }
 
     public List<HrResponses.ResultResponse> listResults(
@@ -313,15 +326,42 @@ public class HrService {
         String jobFilter = normalize(job);
         String queryFilter = normalize(candidateQuery);
         String statusFilter = normalize(status);
-        LocalDateTime from = fromDate == null ? null : fromDate.atStartOfDay();
-        LocalDateTime to = toDate == null ? null : toDate.plusDays(1).atStartOfDay().minusNanos(1);
+        LocalDateTime from = toStartOfDay(fromDate);
+        LocalDateTime to = toEndOfDay(toDate);
 
         List<AttemptEntity> attempts = attemptRepository.findAllWithCandidateOrderByStartedAtDesc();
-        Map<Long, List<AttemptEntity>> attemptsByCandidate = attempts.stream()
-                .collect(Collectors.groupingBy(a -> a.getCandidate().getId()));
+        Map<Long, List<AttemptEntity>> attemptsByCandidate = groupAttemptsByCandidate(attempts);
+        Map<Long, Integer> attemptNumbers = buildAttemptNumbers(attemptsByCandidate);
 
+        List<HrResponses.ResultResponse> rows = new ArrayList<>(buildAttemptRows(attempts, attemptNumbers));
+        appendNotStartedRowsIfNeeded(rows, statusFilter, attemptsByCandidate.keySet());
+
+        return rows.stream()
+                .filter(row -> filterJob(row, jobFilter))
+                .filter(row -> filterDate(row, from, to))
+                .filter(row -> filterCandidate(row, queryFilter))
+                .filter(row -> filterScore(row, minScore, maxScore))
+                .filter(row -> filterStatus(row, statusFilter))
+                .sorted(Comparator.comparing(this::startedAtOrMin).reversed())
+                .toList();
+    }
+
+    private LocalDateTime toStartOfDay(LocalDate date) {
+        return date == null ? null : date.atStartOfDay();
+    }
+
+    private LocalDateTime toEndOfDay(LocalDate date) {
+        return date == null ? null : date.plusDays(1).atStartOfDay().minusNanos(1);
+    }
+
+    private Map<Long, List<AttemptEntity>> groupAttemptsByCandidate(List<AttemptEntity> attempts) {
+        return attempts.stream().collect(Collectors.groupingBy(a -> a.getCandidate().getId()));
+    }
+
+    private Map<Long, Integer> buildAttemptNumbers(Map<Long, List<AttemptEntity>> attemptsByCandidate) {
         Map<Long, Integer> attemptNumbers = new HashMap<>();
-        attemptsByCandidate.forEach((candidateId, candidateAttempts) -> {
+
+        attemptsByCandidate.values().forEach(candidateAttempts -> {
             List<AttemptEntity> ordered = candidateAttempts.stream()
                     .sorted(Comparator.comparing(AttemptEntity::getStartedAt))
                     .toList();
@@ -330,63 +370,79 @@ public class HrService {
             }
         });
 
-        List<HrResponses.ResultResponse> rows = new ArrayList<>();
-        for (AttemptEntity attempt : attempts) {
-            String rowStatus = Boolean.TRUE.equals(attempt.getFinished()) ? "completed" : "in-progress";
-            Long duration = calculateDurationSeconds(attempt.getStartedAt(), attempt.getFinishedAt(), Boolean.TRUE.equals(attempt.getFinished()));
+        return attemptNumbers;
+    }
 
-            rows.add(new HrResponses.ResultResponse(
-                    attempt.getId(),
-                    attemptNumbers.getOrDefault(attempt.getId(), 1),
-                    attempt.getCandidate().getId(),
-                    attempt.getCandidate().getFullName(),
-                    attempt.getCandidate().getLogin(),
-                    attempt.getProfession(),
-                    attempt.getCorrectAnswers(),
-                    attempt.getTotalQuestions(),
-                    attempt.getScore(),
-                    rowStatus,
-                    attempt.getStartedAt(),
-                    attempt.getFinishedAt(),
-                    duration
-            ));
-        }
-
-        if (statusFilter == null || statusFilter.equals("not-started")) {
-            for (CandidateEntity candidate : candidateRepository.findAll()) {
-                if (!attemptsByCandidate.containsKey(candidate.getId())) {
-                    rows.add(new HrResponses.ResultResponse(
-                            null,
-                            null,
-                            candidate.getId(),
-                            candidate.getFullName(),
-                            candidate.getLogin(),
-                            candidate.getProfession(),
-                            null,
-                            null,
-                            null,
-                            "not-started",
-                            null,
-                            null,
-                            null
-                    ));
-                }
-            }
-        }
-
-        return rows.stream()
-                .filter(row -> filterJob(row, jobFilter))
-                .filter(row -> filterDate(row, from, to))
-                .filter(row -> filterCandidate(row, queryFilter))
-                .filter(row -> filterScore(row, minScore, maxScore))
-                .filter(row -> filterStatus(row, statusFilter))
-                .sorted(Comparator.comparing((HrResponses.ResultResponse row) -> row.startedAt() == null ? LocalDateTime.MIN : row.startedAt())
-                        .reversed())
+    private List<HrResponses.ResultResponse> buildAttemptRows(
+            List<AttemptEntity> attempts,
+            Map<Long, Integer> attemptNumbers
+    ) {
+        return attempts.stream()
+                .map(attempt -> toResultRow(attempt, attemptNumbers.getOrDefault(attempt.getId(), 1)))
                 .toList();
     }
 
+    private HrResponses.ResultResponse toResultRow(AttemptEntity attempt, Integer attemptNumber) {
+        boolean finished = Boolean.TRUE.equals(attempt.getFinished());
+        String rowStatus = finished ? "completed" : "in-progress";
+        Long duration = calculateDurationSeconds(attempt.getStartedAt(), attempt.getFinishedAt(), finished);
+
+        return new HrResponses.ResultResponse(
+                attempt.getId(),
+                attemptNumber,
+                attempt.getCandidate().getId(),
+                attempt.getCandidate().getFullName(),
+                attempt.getCandidate().getLogin(),
+                attempt.getProfession(),
+                attempt.getCorrectAnswers(),
+                attempt.getTotalQuestions(),
+                attempt.getScore(),
+                rowStatus,
+                attempt.getStartedAt(),
+                attempt.getFinishedAt(),
+                duration
+        );
+    }
+
+    private void appendNotStartedRowsIfNeeded(
+            List<HrResponses.ResultResponse> rows,
+            String statusFilter,
+            Set<Long> candidateIdsWithAttempts
+    ) {
+        if (statusFilter != null && !"not-started".equals(statusFilter)) {
+            return;
+        }
+
+        candidateRepository.findAll().stream()
+                .filter(candidate -> !candidateIdsWithAttempts.contains(candidate.getId()))
+                .map(this::toNotStartedResultRow)
+                .forEach(rows::add);
+    }
+
+    private HrResponses.ResultResponse toNotStartedResultRow(CandidateEntity candidate) {
+        return new HrResponses.ResultResponse(
+                null,
+                null,
+                candidate.getId(),
+                candidate.getFullName(),
+                candidate.getLogin(),
+                candidate.getProfession(),
+                null,
+                null,
+                null,
+                "not-started",
+                null,
+                null,
+                null
+        );
+    }
+
+    private LocalDateTime startedAtOrMin(HrResponses.ResultResponse row) {
+        return row.startedAt() == null ? LocalDateTime.MIN : row.startedAt();
+    }
+
     private boolean filterJob(HrResponses.ResultResponse row, String jobFilter) {
-        return jobFilter == null || normalize(row.profession()).equals(jobFilter);
+        return jobFilter == null || jobFilter.equals(normalize(row.profession()));
     }
 
     private boolean filterDate(HrResponses.ResultResponse row, LocalDateTime from, LocalDateTime to) {
@@ -394,6 +450,7 @@ public class HrService {
         if (row.startedAt() == null) return false;
         boolean afterFrom = from == null || !row.startedAt().isBefore(from);
         boolean beforeTo = to == null || !row.startedAt().isAfter(to);
+
         return afterFrom && beforeTo;
     }
 
@@ -420,6 +477,7 @@ public class HrService {
         if (startedAt == null) return null;
         LocalDateTime end = finished ? finishedAt : LocalDateTime.now();
         if (end == null) return null;
+
         return Math.max(0, Duration.between(startedAt, end).getSeconds());
     }
 
@@ -431,25 +489,31 @@ public class HrService {
         List<QuestionEntity> questions = questionRepository.findAll().stream()
                 .filter(q -> q.getProfession() != null && q.getProfession().equalsIgnoreCase(fromName))
                 .toList();
+
         for (QuestionEntity question : questions) {
             question.setProfession(toName);
         }
+
         questionRepository.saveAll(questions);
 
         List<CandidateEntity> candidates = candidateRepository.findAll().stream()
                 .filter(c -> c.getProfession() != null && c.getProfession().equalsIgnoreCase(fromName))
                 .toList();
+
         for (CandidateEntity candidate : candidates) {
             candidate.setProfession(toName);
         }
+
         candidateRepository.saveAll(candidates);
 
         List<AttemptEntity> attempts = attemptRepository.findAll().stream()
                 .filter(a -> a.getProfession() != null && a.getProfession().equalsIgnoreCase(fromName))
                 .toList();
+
         for (AttemptEntity attempt : attempts) {
             attempt.setProfession(toName);
         }
+
         attemptRepository.saveAll(attempts);
     }
 
@@ -457,6 +521,7 @@ public class HrService {
         List<HrResponses.OptionResponse> options = optionRepository.findAllByQuestionId(question.getId()).stream()
                 .map(o -> new HrResponses.OptionResponse(o.getId(), o.getText(), o.getCorrect()))
                 .toList();
+
         return new HrResponses.TestResponse(
                 question.getId(),
                 question.getTitle(),
@@ -474,6 +539,7 @@ public class HrService {
                 .stream()
                 .map(o -> new HrResponses.OptionResponse(o.getId(), o.getText(), o.getCorrect()))
                 .toList();
+
         return new HrResponses.TestResponse(
                 question.getId(),
                 question.getTitle(),
@@ -489,6 +555,7 @@ public class HrService {
         if (questionIds == null || questionIds.isEmpty()) {
             return Map.of();
         }
+
         return optionRepository.findAllByQuestionIdIn(questionIds).stream()
                 .collect(Collectors.groupingBy(option -> option.getQuestion().getId()));
     }
@@ -517,12 +584,15 @@ public class HrService {
 
     private void ensureJobExists(String profession) {
         String value = profession.trim();
+
         if (value.isEmpty()) {
             throw new IllegalArgumentException("profession is required");
         }
+
         if (jobRepository.findByNameIgnoreCase(value).isPresent()) {
             return;
         }
+
         jobRepository.save(JobEntity.builder()
                 .name(value)
                 .description(null)
@@ -533,12 +603,15 @@ public class HrService {
 
     private String normalizePasswordForStorage(String password) {
         String raw = password == null ? "" : password.trim();
+
         if (raw.isEmpty()) {
             throw new IllegalArgumentException("password is required");
         }
+
         if (isBcryptHash(raw)) {
             return raw;
         }
+
         return passwordEncoder.encode(raw);
     }
 
@@ -548,7 +621,9 @@ public class HrService {
 
     private String normalize(String value) {
         if (value == null) return null;
+        
         String normalized = value.trim().toLowerCase(Locale.ROOT);
+        
         return normalized.isEmpty() ? null : normalized;
     }
 }

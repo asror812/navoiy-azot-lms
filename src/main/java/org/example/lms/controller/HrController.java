@@ -46,7 +46,7 @@ public class HrController {
 
     @DeleteMapping("/questions/{questionId}")
     public ApiResponse deleteQuestion(@PathVariable Long questionId) {
-        hrService.deleteQuestion(questionId);
+        hrService.deleteTest(questionId);
         return ApiResponse.ok("Question deleted", null);
     }
 

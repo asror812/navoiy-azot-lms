@@ -16,8 +16,3 @@ exam:
   duration-minutes: ${EXAM_DURATION_MINUTES:60}
   question-count: ${EXAM_QUESTION_COUNT:40}
   max-attempts-per-candidate: ${EXAM_MAX_ATTEMPTS_PER_CANDIDATE:0}
-
-logging:
-  level:
-    org.springframework.web: DEBUG
-    org.springframework.web.servlet.mvc.method.annotation.RequestMappingHandlerMapping: TRACE

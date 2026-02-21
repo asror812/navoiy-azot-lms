@@ -25,7 +25,7 @@ public class CandidateController {
     }
 
     @GetMapping("/{candidateId}/tests")
-    public ApiResponse listRandomTests(@PathVariable Long candidateId) {
+    public ApiResponse listRandomTests(@PathVariable("candidateId") Long candidateId) {
         return ApiResponse.ok("OK", candidateService.listRandomTests(candidateId));
     }
 
@@ -35,18 +35,19 @@ public class CandidateController {
     }
 
     @PostMapping("/attempts/{attemptId}/progress")
-    public ApiResponse saveProgress(@PathVariable Long attemptId,
+    public ApiResponse saveProgress(@PathVariable("attemptId") Long attemptId,
             @Valid @RequestBody CandidateDtos.SaveProgressRequest req) {
         return ApiResponse.ok("Progress saved", candidateService.saveProgress(attemptId, req));
     }
 
     @GetMapping("/attempts/{attemptId}/progress")
-    public ApiResponse getProgress(@PathVariable Long attemptId, @RequestParam Long candidateId) {
+    public ApiResponse getProgress(@PathVariable("attemptId") Long attemptId,
+            @RequestParam("candidateId") Long candidateId) {
         return ApiResponse.ok("OK", candidateService.getProgress(attemptId, candidateId));
     }
 
     @PostMapping("/attempts/{attemptId}/submit")
-    public ApiResponse submit(@PathVariable Long attemptId,
+    public ApiResponse submit(@PathVariable("attemptId") Long attemptId,
             @Valid @RequestBody CandidateDtos.SubmitAttemptRequest req) {
         return ApiResponse.ok("Submitted", candidateService.submitAttempt(attemptId, req));
     }
