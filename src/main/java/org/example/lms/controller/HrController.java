@@ -5,8 +5,11 @@ import lombok.RequiredArgsConstructor;
 import org.example.lms.dto.ApiResponse;
 import org.example.lms.dto.HrDtos;
 import org.example.lms.service.HrService;
+import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
+
+import java.time.LocalDate;
 
 @RestController
 @RequestMapping("/api/hr")
@@ -63,10 +66,49 @@ public class HrController {
         return ApiResponse.ok("Candidate updated", hrService.updateCandidate(candidateId, req));
     }
 
+    @PutMapping("/candidates/{candidateId}/passport")
+    public ApiResponse updateCandidatePassport(@PathVariable(name = "candidateId") Long candidateId,
+            @Valid @RequestBody HrDtos.UpdateCandidatePassportRequest req) {
+        return ApiResponse.ok("Candidate passport updated", hrService.updateCandidatePassport(candidateId, req));
+    }
+
     @DeleteMapping("/candidates/{candidateId}")
     public ApiResponse deleteCandidate(@PathVariable Long candidateId) {
         hrService.deleteCandidate(candidateId);
         return ApiResponse.ok("Candidate deleted", null);
     }
 
+    @GetMapping("/jobs")
+    public ApiResponse listJobs() {
+        return ApiResponse.ok("OK", hrService.listJobs());
+    }
+
+    @PostMapping("/jobs")
+    public ApiResponse createJob(@Valid @RequestBody HrDtos.CreateJobRequest req) {
+        return ApiResponse.ok("Job created", hrService.createJob(req));
+    }
+
+    @PutMapping("/jobs/{jobId}")
+    public ApiResponse updateJob(@PathVariable Long jobId, @RequestBody HrDtos.UpdateJobRequest req) {
+        return ApiResponse.ok("Job updated", hrService.updateJob(jobId, req));
+    }
+
+    @DeleteMapping("/jobs/{jobId}")
+    public ApiResponse deleteJob(@PathVariable Long jobId) {
+        hrService.deleteJob(jobId);
+        return ApiResponse.ok("Job deleted", null);
+    }
+
+    @GetMapping("/results")
+    public ApiResponse listResults(
+            @RequestParam(required = false) String job,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate fromDate,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate toDate,
+            @RequestParam(required = false) String candidate,
+            @RequestParam(required = false) Double minScore,
+            @RequestParam(required = false) Double maxScore,
+            @RequestParam(required = false) String status
+    ) {
+        return ApiResponse.ok("OK", hrService.listResults(job, fromDate, toDate, candidate, minScore, maxScore, status));
+    }
 }

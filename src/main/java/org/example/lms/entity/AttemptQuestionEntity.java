@@ -24,4 +24,7 @@ public class AttemptQuestionEntity {
     @ManyToOne(optional = false, fetch = FetchType.LAZY)
     @JoinColumn(name = "question_id")
     private QuestionEntity question;
+
+    @Column(name = "display_order")
+    private Integer displayOrder;
 }

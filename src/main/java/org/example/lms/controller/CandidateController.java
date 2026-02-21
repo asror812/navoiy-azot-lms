@@ -19,6 +19,11 @@ public class CandidateController {
         return ApiResponse.ok("Login success", candidateService.login(req));
     }
 
+    @PostMapping("/auth/passport-login")
+    public ApiResponse passportLogin(@Valid @RequestBody CandidateDtos.PassportLoginRequest req) {
+        return ApiResponse.ok("Login success", candidateService.passportLogin(req));
+    }
+
     @GetMapping("/{candidateId}/tests")
     public ApiResponse listRandomTests(@PathVariable Long candidateId) {
         return ApiResponse.ok("OK", candidateService.listRandomTests(candidateId));
@@ -27,6 +32,17 @@ public class CandidateController {
     @PostMapping("/tests/start")
     public ApiResponse start(@Valid @RequestBody CandidateDtos.StartTestRequest req) {
         return ApiResponse.ok("Started", candidateService.startTest(req));
+    }
+
+    @PostMapping("/attempts/{attemptId}/progress")
+    public ApiResponse saveProgress(@PathVariable Long attemptId,
+            @Valid @RequestBody CandidateDtos.SaveProgressRequest req) {
+        return ApiResponse.ok("Progress saved", candidateService.saveProgress(attemptId, req));
+    }
+
+    @GetMapping("/attempts/{attemptId}/progress")
+    public ApiResponse getProgress(@PathVariable Long attemptId, @RequestParam Long candidateId) {
+        return ApiResponse.ok("OK", candidateService.getProgress(attemptId, candidateId));
     }
 
     @PostMapping("/attempts/{attemptId}/submit")

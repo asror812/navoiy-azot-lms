@@ -55,4 +55,20 @@ public class HrDtos {
                         String password,
                         Boolean active) {
         }
+
+        public record UpdateCandidatePassportRequest(
+                        @NotBlank(message = "passport is required") String passport) {
+        }
+
+        public record CreateJobRequest(
+                        @NotBlank(message = "name is required") String name,
+                        String description,
+                        Boolean active) {
+        }
+
+        public record UpdateJobRequest(
+                        String name,
+                        String description,
+                        Boolean active) {
+        }
 }

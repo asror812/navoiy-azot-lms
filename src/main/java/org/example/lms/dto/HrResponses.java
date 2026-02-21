@@ -1,5 +1,6 @@
 package org.example.lms.dto;
 
+import java.time.LocalDateTime;
 import java.util.List;
 
 public class HrResponses {
@@ -22,7 +23,32 @@ public class HrResponses {
             String fullName,
             String profession,
             String login,
-            String password,
             Boolean active) {
+    }
+
+    public record JobResponse(
+            Long jobId,
+            String name,
+            String description,
+            Boolean active,
+            LocalDateTime createdAt,
+            Long candidateCount,
+            Long questionCount) {
+    }
+
+    public record ResultResponse(
+            Long attemptId,
+            Integer attemptNumber,
+            Long candidateId,
+            String candidateName,
+            String passport,
+            String profession,
+            Integer correctAnswers,
+            Integer totalQuestions,
+            Double score,
+            String status,
+            LocalDateTime startedAt,
+            LocalDateTime finishedAt,
+            Long durationSeconds) {
     }
 }

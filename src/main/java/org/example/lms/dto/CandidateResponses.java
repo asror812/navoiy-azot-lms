@@ -1,5 +1,6 @@
 package org.example.lms.dto;
 
+import java.time.LocalDateTime;
 import java.util.List;
 
 public class CandidateResponses {
@@ -9,8 +10,15 @@ public class CandidateResponses {
     public record ProfessionTestResponse(Long testId, String title, String profession) {
     }
 
-    public record StartResponse(Long attemptId, String profession, Integer totalQuestions,
-            List<QuestionPayload> questions) {
+    public record StartResponse(Long attemptId,
+            Integer attemptNumber,
+            String profession,
+            Integer totalQuestions,
+            Integer examDurationMinutes,
+            LocalDateTime startedAt,
+            LocalDateTime endsAt,
+            List<QuestionPayload> questions,
+            List<SavedAnswerPayload> savedAnswers) {
     }
 
     public record QuestionPayload(Long questionId, String text, List<OptionPayload> options) {
@@ -19,6 +27,22 @@ public class CandidateResponses {
     public record OptionPayload(Long optionId, String text) {
     }
 
-    public record SubmitResponse(Long attemptId, Integer correctAnswers, Integer totalQuestions, Double score) {
+    public record SavedAnswerPayload(Long questionId, Long selectedOptionId) {
+    }
+
+    public record ProgressResponse(Long attemptId,
+            Integer answeredCount,
+            Integer totalQuestions,
+            LocalDateTime startedAt,
+            LocalDateTime endsAt,
+            List<SavedAnswerPayload> savedAnswers) {
+    }
+
+    public record SubmitResponse(Long attemptId,
+            Integer correctAnswers,
+            Integer totalQuestions,
+            Double score,
+            LocalDateTime startedAt,
+            LocalDateTime finishedAt) {
     }
 }

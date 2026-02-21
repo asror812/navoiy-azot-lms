@@ -9,4 +9,8 @@ public interface CandidateRepository extends JpaRepository<CandidateEntity, Long
     Optional<CandidateEntity> findByLoginIgnoreCase(String login);
 
     boolean existsByLoginIgnoreCase(String login);
+
+    boolean existsByLoginIgnoreCaseAndIdNot(String login, Long id);
+
+    long countByProfessionIgnoreCase(String profession);
 }

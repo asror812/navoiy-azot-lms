@@ -1,0 +1,10 @@
+.git
+.github
+.gradle
+build
+out
+*.iml
+.idea
+.vscode
+README.md
+openapi.json

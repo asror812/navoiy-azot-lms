@@ -12,10 +12,20 @@ public class CandidateDtos {
                         @NotBlank(message = "password is required") String password) {
         }
 
+        public record PassportLoginRequest(
+                        @NotBlank(message = "fullName is required") String fullName,
+                        @NotBlank(message = "passport is required") String passport) {
+        }
+
         public record StartTestRequest(@NotNull(message = "candidateId is required") Long candidateId) {
         }
 
         public record SubmitAttemptRequest(
+                        @NotNull(message = "candidateId is required") Long candidateId,
+                        @NotNull(message = "answers are required") List<AnswerRequest> answers) {
+        }
+
+        public record SaveProgressRequest(
                         @NotNull(message = "candidateId is required") Long candidateId,
                         @NotNull(message = "answers are required") List<AnswerRequest> answers) {
         }

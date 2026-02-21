@@ -1,21 +1,21 @@
 server:
-  port: 8080
+  port: ${PORT:${SERVER_PORT:8080}}
 
 spring:
   datasource:
-    url: jdbc:postgresql://192.168.1.7:5432/navoiyazotlmsdb
-    username: navoiy-azot-lms-user
-    password: WYFznt1iNcz2fVgkH7Tb
+    url: ${DB_URL:jdbc:postgresql://localhost:5432/navoiyazotlms}
+    username: ${DB_USERNAME:postgres}
+    password: ${DB_PASSWORD:postgres}
     driver-class-name: org.postgresql.Driver
   jpa:
     database: postgresql
     hibernate:
-      ddl-auto: update
+      ddl-auto: ${DDL_AUTO:update}
   mail:
-    host: smtp.gmail.com
-    port: 587
-    username: tvajoyibgoya@gmail.com
-    password: hmkg uttj apom eohv
+    host: ${MAIL_HOST:smtp.gmail.com}
+    port: ${MAIL_PORT:587}
+    username: ${MAIL_USERNAME:}
+    password: ${MAIL_PASSWORD:}
     properties:
       mail:
         smtp:
@@ -30,15 +30,15 @@ spring:
   servlet:
     multipart:
       enabled: true
-      max-file-size: 150MB
-      max-request-size: 150MB
-      file-size-threshold: 150MB
+      max-file-size: ${MAX_FILE_SIZE:150MB}
+      max-request-size: ${MAX_REQUEST_SIZE:150MB}
+      file-size-threshold: ${FILE_SIZE_THRESHOLD:150MB}
 
 path:
   resource:
-    prompts: prompts/answer_checker.txt
+    prompts: ${PROMPTS_PATH:prompts/answer_checker.txt}
 
 exam:
-  appeal-deadline-seconds: 24h
-  duration-minutes: 90
-  question-count: 50
+  duration-minutes: ${EXAM_DURATION_MINUTES:60}
+  question-count: ${EXAM_QUESTION_COUNT:40}
+  max-attempts-per-candidate: ${EXAM_MAX_ATTEMPTS_PER_CANDIDATE:0}

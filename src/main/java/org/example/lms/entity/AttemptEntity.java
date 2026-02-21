@@ -6,9 +6,7 @@ import lombok.*;
 import java.time.LocalDateTime;
 
 @Entity
-@Table(name = "attempts", uniqueConstraints = {
-        @UniqueConstraint(columnNames = { "candidate_id" })
-})
+@Table(name = "attempts")
 @Getter
 @Setter
 @NoArgsConstructor
@@ -31,6 +29,9 @@ public class AttemptEntity {
 
     @Column(nullable = false)
     private Integer totalQuestions;
+
+    @Column(name = "duration_minutes")
+    private Integer durationMinutes;
 
     private Integer correctAnswers;
     private Double score;

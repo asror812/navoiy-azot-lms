@@ -2,14 +2,20 @@ package org.example.lms.config;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.example.lms.entity.CandidateEntity;
 import org.example.lms.entity.OptionEntity;
 import org.example.lms.entity.QuestionEntity;
+import org.example.lms.entity.JobEntity;
+import org.example.lms.repository.CandidateRepository;
+import org.example.lms.repository.JobRepository;
 import org.example.lms.repository.OptionRepository;
 import org.example.lms.repository.QuestionRepository;
 import org.springframework.boot.CommandLineRunner;
 import org.springframework.core.annotation.Order;
+import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Component;
 
+import java.time.LocalDateTime;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
@@ -143,11 +149,67 @@ public class TestDataSeeder implements CommandLineRunner {
             )
     );
 
+    private static final List<SeedCandidate> SEED_CANDIDATES = List.of(
+            new SeedCandidate("Ali Valiyev", "electrician", "AA1234567", "AA1234567"),
+            new SeedCandidate("Malika Karimova", "operator", "AB7654321", "AB7654321")
+    );
+
     private final QuestionRepository questionRepository;
     private final OptionRepository optionRepository;
+    private final JobRepository jobRepository;
+    private final CandidateRepository candidateRepository;
+    private final PasswordEncoder passwordEncoder;
 
     @Override
     public void run(String... args) {
+        Set<String> existingJobs = new HashSet<>(
+                jobRepository.findAll().stream()
+                        .map(job -> job.getName().trim().toLowerCase())
+                        .toList()
+        );
+
+        for (SeedTest seed : SEED_TESTS) {
+            String professionKey = seed.profession().trim().toLowerCase();
+            if (!existingJobs.contains(professionKey)) {
+                jobRepository.save(JobEntity.builder()
+                        .name(seed.profession().trim())
+                        .description("Auto-created by seed data")
+                        .active(true)
+                        .createdAt(LocalDateTime.now())
+                        .build());
+                existingJobs.add(professionKey);
+            }
+        }
+
+        int createdCandidates = 0;
+        for (SeedCandidate seed : SEED_CANDIDATES) {
+            String login = seed.login().trim();
+            if (candidateRepository.existsByLoginIgnoreCase(login)) {
+                continue;
+            }
+
+            String profession = seed.profession().trim();
+            String professionKey = profession.toLowerCase();
+            if (!existingJobs.contains(professionKey)) {
+                jobRepository.save(JobEntity.builder()
+                        .name(profession)
+                        .description("Auto-created by seed data")
+                        .active(true)
+                        .createdAt(LocalDateTime.now())
+                        .build());
+                existingJobs.add(professionKey);
+            }
+
+            candidateRepository.save(CandidateEntity.builder()
+                    .fullName(seed.fullName().trim())
+                    .profession(profession)
+                    .login(login)
+                    .passwordHash(encodePassword(seed.password()))
+                    .active(true)
+                    .build());
+            createdCandidates++;
+        }
+
         Set<String> existingTitles = new HashSet<>(
                 questionRepository.findAll().stream()
                         .map(q -> q.getTitle().trim().toLowerCase())
@@ -183,13 +245,31 @@ public class TestDataSeeder implements CommandLineRunner {
             createdCount++;
         }
 
-        log.info("Seeder completed: created {} realistic tests(questions). totalCount={}",
-                createdCount, questionRepository.count());
+        log.info("Seeder completed: created {} candidates, {} realistic tests(questions). candidateTotal={}, questionTotal={}",
+                createdCandidates, createdCount, candidateRepository.count(), questionRepository.count());
     }
 
     private record SeedTest(String title, String profession, String questionText, List<SeedOption> options) {
     }
 
     private record SeedOption(String text, boolean correct) {
+    }
+
+    private record SeedCandidate(String fullName, String profession, String login, String password) {
+    }
+
+    private String encodePassword(String raw) {
+        String value = raw == null ? "" : raw.trim();
+        if (value.isEmpty()) {
+            throw new IllegalArgumentException("Seed candidate password cannot be empty");
+        }
+        if (isBcryptHash(value)) {
+            return value;
+        }
+        return passwordEncoder.encode(value);
+    }
+
+    private boolean isBcryptHash(String value) {
+        return value.startsWith("$2a$") || value.startsWith("$2b$") || value.startsWith("$2y$");
     }
 }

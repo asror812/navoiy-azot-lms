@@ -7,5 +7,8 @@ import java.util.List;
 
 public interface QuestionRepository extends JpaRepository<QuestionEntity, Long> {
     List<QuestionEntity> findAllByActiveTrueOrderByIdDesc();
+
     List<QuestionEntity> findAllByActiveTrueAndProfessionIgnoreCaseOrderByIdDesc(String profession);
+
+    long countByProfessionIgnoreCase(String profession);
 }
